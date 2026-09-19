@@ -86,7 +86,7 @@ def test_begin_on_safe_ground_arms_and_nothing_is_laid_yet(page):
     got = run(page, """const game = fresh(); const r = game.route;
       const armed = r.begin(40, 1);                                   // inside the 2-unit frame
       return { armed, mode: r.mode, down: r.down, anchor: r.anchor, cells: r.cells.length, routeCells: count(game, ROUTE), events: game.events };""")
-    assert got == {'armed': True, 'mode': 'armed', 'down': True, 'anchor': {'cx': 80, 'cy': 2}, 'cells': 0, 'routeCells': 0, 'events': []}
+    assert got == {'armed': True, 'mode': 'armed', 'down': True, 'anchor': {'cx': 80, 'cy': 2}, 'cells': 0, 'routeCells': 0, 'events': ['armed']}
 
 
 def test_route_cells_exist_the_instant_the_pointer_moves(page):
@@ -102,7 +102,7 @@ def test_route_cells_exist_the_instant_the_pointer_moves(page):
     assert got['sizes'] == [0, 17, 17, 57, 57]
     assert got['mode'] == 'drawing' and got['connected'] and got['allRoute']
     assert (got['firstCellRow'], got['lastCellRow']) == (4, 60)
-    assert got['events'] == ['start']
+    assert got['events'] == ['armed', 'start']
 
 
 def test_a_single_huge_jump_lays_a_gap_free_path(page):
@@ -155,7 +155,7 @@ def test_a_route_that_comes_straight_back_is_jitter_not_a_route(page):
       return out;""")
     assert got['two']['mode'] == 'armed' and got['two']['cleared'] == 0 and got['two']['routes'] == 0
     assert got['two']['routeCells'] == 0 and got['two']['openCells'] == got['two']['total']        # nothing left behind
-    assert got['two']['events'] == ['start', 'cancel']
+    assert got['two']['events'] == ['armed', 'start', 'cancel']
     assert got['three']['min'] == 3 and got['three']['routes'] == 1 and got['three']['cleared'] > 0
 
 
@@ -185,7 +185,7 @@ def test_drawing_into_a_patrol_costs_exactly_one_life_and_ignores_the_rest_of_th
     assert got['hit'] == {'lives': 2, 'mode': 'spent', 'routeCells': 0, 'cells': 0}
     assert got['after'] == {'lives': 2, 'mode': 'spent', 'routeCells': 0, 'cleared': 0}
     assert got['lifted'] == {'mode': 'idle', 'down': False}
-    assert got['events'][:2] == ['start', 'hit'] and got['againClosed'] == 1
+    assert got['events'][:3] == ['armed', 'start', 'hit'] and got['againClosed'] == 1
 
 
 def test_a_patrol_flying_into_the_route_costs_a_life_at_the_step_it_touches(page):
@@ -243,7 +243,7 @@ def test_lifting_mid_field_erases_the_route_for_free(page):
       return { before, after: count(game, ROUTE), lives: game.run.lives, mode: r.mode, down: r.down, cleared: game.level.cleared, events: game.events };""")
     assert got['before'] == 57 and got['after'] == 0 and got['lives'] == 3
     assert got['mode'] == 'idle' and got['down'] is False and got['cleared'] == 0
-    assert got['events'] == ['start', 'cancel']
+    assert got['events'] == ['armed', 'start', 'cancel']
 
 
 def test_a_pause_a_restart_or_a_win_erases_a_route_in_progress(page):
@@ -260,6 +260,27 @@ def test_a_pause_a_restart_or_a_win_erases_a_route_in_progress(page):
     assert got['afterResume'] == {'routeCells': 0, 'mode': 'idle'}
     assert got['restart'] == {'routeCells': 0, 'mode': 'idle', 'phase': 'playing'}
     assert got['crash'] == {'routeCells': 0, 'mode': 'idle'}
+
+
+def test_armed_is_announced_when_a_touch_finds_safe_ground_and_not_when_a_route_merely_ends_on_it(page):
+    """The tutorial's first step ("touch the edge") is driven by this event, so it must fire exactly then."""
+    got = run(page, """const out = {};
+      let game = fresh([{ x: 100, y: 40 }]);
+      game.route.begin(40, 1); out.direct = [...game.events];                                       // straight onto the frame
+      game = fresh([{ x: 100, y: 40 }]); game.route.begin(40, 3.0, 1.6); out.snapped = [...game.events];    // pulled onto it
+      game = fresh([{ x: 100, y: 40 }]); game.route.begin(40, 30); game.route.move(40, 20); out.midField = [...game.events];   // a touch in the field: nothing yet
+      game.route.move(40, 3); game.route.move(40, 1); out.reachedTheEdge = [...game.events];       // now it has found safe ground
+      game = fresh([{ x: 100, y: 60 }]); const r = game.route; r.begin(40, 1); r.move(40, 30); r.move(40, 71);   // draw across: the closing re-arms silently
+      out.closed = [...game.events]; out.mode = r.mode;
+      game = fresh([{ x: 100, y: 60 }]); game.route.begin(60, 1); game.route.move(60, 2.6); game.route.move(60, 1.5);   // a jitter re-arms silently too
+      out.jitter = [...game.events];
+      game = fresh([{ x: 100, y: 60 }]); game.route.begin(60, 1); game.route.end('lift'); game.route.begin(60, 1); out.twice = [...game.events];   // a fresh touch arms again
+      return out;""")
+    assert got['direct'] == ['armed'] and got['snapped'][0] == 'armed'
+    assert got['midField'] == ['edge-hint'] and got['reachedTheEdge'] == ['edge-hint', 'armed']
+    assert got['closed'] == ['armed', 'start'] and got['mode'] == 'armed'
+    assert got['jitter'] == ['armed', 'start', 'cancel']
+    assert got['twice'] == ['armed', 'armed']
 
 
 def test_begin_is_refused_outside_play(page):

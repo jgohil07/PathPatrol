@@ -140,10 +140,12 @@ export class RouteEngine {
   /* --- internals -------------------------------------------------------------------------- */
 
   _arm(cx, cy) {
+    const from = this.mode;
     this.mode = MODE.ARMED;
     this.anchor.cx = cx;
     this.anchor.cy = cy;
     this.points.length = 0;
+    if (from === MODE.IDLE) this.game.emit('route', { type: 'armed' });          // a touch just found safe ground
   }
 
   /* One cell entered by the pointer's path. Returns true to stop walking. */

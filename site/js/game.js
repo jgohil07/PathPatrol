@@ -4,11 +4,12 @@
    Every delayed action goes through the Scheduler below, which only advances while the game is
    actually running, so pausing freezes it and restarting cancels it. The prototype used setTimeout and
    paid for it: a restarted level could "win itself" and a pause could be overridden. */
-import { START_LIVES, MAX_LIVES, LEVEL_CLEAR_DELAY, CLEAR_SKIP_AFTER, RESUME_COUNTDOWN, CELLS_PER_UNIT, SCORE, levelInfo } from './config.js';
+import { START_LIVES, MAX_LIVES, LEVEL_CLEAR_DELAY, CLEAR_SKIP_AFTER, RESUME_COUNTDOWN, CELLS_PER_UNIT, SCORE, TUTORIAL, levelInfo } from './config.js';
 import { Grid, FIELD, WALL, ROUTE, toCell } from './grid.js';
 import { buildLevel } from './level.js';
 import { advance, settle, makePatrol } from './physics.js';
 import { RouteEngine } from './route.js';
+import { Tutorial } from './tutorial.js';
 import { randomSeed, dayKey } from './rng.js';
 import { takeSnapshot, validateSnapshot, decodeGrid } from './snapshot.js';
 
@@ -84,6 +85,7 @@ export class Game extends Emitter {
     this.saved = null;         // a validated snapshot of an interrupted run, offered on the title screen
     this._clearAt = 0;         // game-clock time the win screen appeared
     this.route = new RouteEngine(this);
+    this.tutorial = new Tutorial(this);
     this.on('route', (event) => this._onRoute(event));
   }
 
@@ -108,6 +110,7 @@ export class Game extends Emitter {
   /* The title screen: a decorative board that keeps moving behind the start button. */
   enterTitle() {
     this.run = null;
+    this.tutorial.stop();
     this._build(6, 'attract');
     this._loadSaved();                       // before the phase changes: the title decides what to focus from it
     this._setPhase(PHASE.TITLE);
@@ -182,8 +185,55 @@ export class Game extends Emitter {
     this.report = null;
     this.tally = null;
     this.saved = null;
+    this.tutorial.stop();
     this.storage.updateRecords((r) => { r.runs++; });
     this.startLevel(1);
+  }
+
+  /* --- the tutorial ------------------------------------------------------------------------------ */
+
+  /* Level 1's board with one slow patrol and the coach. A run that was in progress stays saved on disk (it is
+     saved at every capture, life and level start) and resumable from the title; the tutorial itself is never
+     saved and never touches the score or the records. */
+  startTutorial({ origin = 'start' } = {}) {
+    const records = this.storage.records;
+    this.run = {
+      seed: 'tutorial', mode: 'tutorial', lives: START_LIVES, score: 0, combo: 1, nextLifeAt: SCORE.extraLifeEvery,
+      stats: { captures: 0, closeCalls: 0, levelsCleared: 0 },
+      best0: { score: records.bestScore, clear: records.bestClear, level: records.bestLevel },
+    };
+    this.report = null;
+    this.tally = null;
+    this._build(1, 'tutorial');
+    const info = levelInfo(1);
+    this.level.patrols.length = 0;
+    const speed = info.speed * TUTORIAL.speedScale;
+    this.level.patrols.push(makePatrol(96, 30, -speed * 0.6, speed * 0.8));       // on the right, well away from the ghost's path
+    this._markLevelStart();
+    this._setPhase(PHASE.PLAYING);
+    this.tutorial.start(origin);
+    this.emit('hud');
+  }
+
+  /* The coached capture happened: the tutorial is over, and the player chooses to play. */
+  finishTutorial(result) {
+    this.tutorial.stop();
+    this.storage.updateSettings({ tutorialDone: true });
+    this.tally = { tutorial: true, cleared: result.percent, origin: this.tutorial.origin };
+    this._clearAt = this.clock.now;
+    this._setPhase(PHASE.CLEAR);
+    this.emit('clear', this.tally);
+  }
+
+  /* The header's Skip button. A first launch goes on to a real run; a replay goes back to the title. */
+  skipTutorial() {
+    if (!this.tutorial.active) return false;
+    const origin = this.tutorial.origin;
+    this.tutorial.stop();
+    this.storage.updateSettings({ tutorialDone: true });
+    if (origin === 'start') this.newRun();
+    else this.enterTitle();
+    return true;
   }
 
   /* A level is (re)started: remember where the score and stats stood, and begin at x1. */
@@ -209,7 +259,7 @@ export class Game extends Emitter {
      (that is what New run is for). */
   restartLevel() {
     const ok = this.phase === PHASE.PLAYING || this.phase === PHASE.PAUSED || this.phase === PHASE.COUNTDOWN;
-    if (!ok || !this.run || this.run.mode === 'daily') return false;
+    if (!ok || !this.run || this.run.mode === 'daily' || this.run.mode === 'tutorial') return false;
     const { scoreAtStart, statsAtStart } = this.level;
     this._build(this.level.number, this.run.seed);
     this.run.score = scoreAtStart;
@@ -256,6 +306,7 @@ export class Game extends Emitter {
   /* The route engine reports a patrol touching a route. */
   loseLife() {
     if (this.phase !== PHASE.PLAYING) return;
+    if (this.run.mode === 'tutorial') { this.flash = 0.34; return; }          // practice: the red flash, and nothing lost
     this.run.lives--;
     this.run.combo = 1;
     this.flash = 0.34;
@@ -356,13 +407,14 @@ export class Game extends Emitter {
     level.cleared = ((level.initialPlayable - after) / level.initialPlayable) * 100;
     const gained = level.cleared - previous;
     const result = { percent: level.cleared, gained, cellsClaimed: before - after, points: 0, capturePoints: 0, closePoints: 0, closeCalls, combo: 1, nextCombo: 1 };
-    if (this.run) Object.assign(result, this._scoreCapture(this.run, gained, closeCalls));
-    this.storage.updateRecords((r) => { r.bestClear = Math.max(r.bestClear, level.cleared); });
+    const real = !!this.run && this.run.mode !== 'tutorial';                 // the tutorial is practice: no score, no records, no save
+    if (real) Object.assign(result, this._scoreCapture(this.run, gained, closeCalls));
+    if (real) this.storage.updateRecords((r) => { r.bestClear = Math.max(r.bestClear, level.cleared); });
     this.emit('capture', result);
-    this._addScore(result.points);
+    if (real) this._addScore(result.points);
     this.emit('hud');
-    if (this.run && level.cleared >= level.info.target) this._levelWon();
-    if (this.run) this.persist();
+    if (real && level.cleared >= level.info.target) this._levelWon();
+    if (real) this.persist();
     return result;
   }
 
@@ -417,7 +469,8 @@ export class Game extends Emitter {
   skipClear() {
     if (this.phase !== PHASE.CLEAR) return false;
     if (this.clock.now - this._clearAt < CLEAR_SKIP_AFTER) return false;
-    this.startLevel(this.level.number + 1);                     // building the level resets the clock, which drops the automatic advance
+    if (this.tally && this.tally.tutorial) this.newRun();       // the tutorial's finish screen: Play
+    else this.startLevel(this.level.number + 1);                 // building the level resets the clock, which drops the automatic advance
     return true;
   }
 
@@ -441,6 +494,7 @@ export class Game extends Emitter {
         if (this.phase === PHASE.PLAYING) {
           advance(this.level.patrols, dt, this.grid);
           this.route.afterStep();             // a patrol may have flown into the route being drawn
+          this.tutorial.update();
         }
         break;
       case PHASE.CLEAR:

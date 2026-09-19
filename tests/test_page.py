@@ -155,7 +155,7 @@ def test_d9_blocked_storage_does_not_stop_the_game(open_page):
 
 def test_d15_reset_needs_two_taps_and_keeps_the_theme(open_page):
     page = open_page()
-    seed = {'v': 2, 'settings': {'sound': False, 'theme': 'drive', 'motion': 'reduced', 'showFps': True},
+    seed = {'v': 2, 'settings': {'sound': False, 'theme': 'drive', 'motion': 'reduced', 'showFps': True, 'tutorialDone': True},
             'records': {'bestClear': 61.5, 'bestLevel': 4, 'runs': 9, 'wins': 3}}
     page.evaluate(f"localStorage.setItem('{STORE}', JSON.stringify({json.dumps(seed)}))")
     reload_ready(page)
@@ -178,7 +178,7 @@ def test_d15_reset_needs_two_taps_and_keeps_the_theme(open_page):
     assert page.locator('#runsPlayed').inner_text() == '0' and page.locator('#bestClear').inner_text() == '0.0%'
     stored = json.loads(page.evaluate(f"localStorage.getItem('{STORE}')"))
     assert stored['records'] == {'bestScore': 0, 'bestClear': 0, 'bestLevel': 0, 'runs': 0, 'wins': 0}
-    assert stored['settings'] == {'sound': False, 'theme': 'drive', 'motion': 'reduced', 'showFps': True}
+    assert stored['settings'] == {'sound': False, 'theme': 'drive', 'motion': 'reduced', 'showFps': True, 'tutorialDone': True}
 
 
 def test_d11_mute_is_remembered_across_reloads(open_page):

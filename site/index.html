@@ -51,6 +51,7 @@
             <button class="btn btn--ghost btn--adaptive" id="pauseButton" type="button" aria-label="Pause">
               <svg class="icon icon-pause" aria-hidden="true"><use href="#i-pause" /></svg>
               <svg class="icon icon-play" aria-hidden="true"><use href="#i-play" /></svg>
+              <svg class="icon icon-skip" aria-hidden="true"><use href="#i-arrow" /></svg>
               <span class="btn-text only-fine">Pause</span><kbd class="only-fine">P</kbd>
             </button>
           </div>
@@ -109,7 +110,8 @@
               <span class="eyebrow" id="clearEyebrow">Level cleared</span>
               <strong class="big" id="clearTotal">+0</strong>
               <dl class="receipt" id="tally"></dl>
-              <div class="cta"><button type="button" class="btn btn--primary btn--big" id="nextButton">Next level<svg class="icon" aria-hidden="true"><use href="#i-arrow" /></svg></button></div>
+              <p class="fine" id="clearNote" hidden></p>
+              <div class="cta"><button type="button" class="btn btn--primary btn--big" id="nextButton"><span id="nextLabel">Next level</span><svg class="icon" aria-hidden="true"><use href="#i-arrow" /></svg></button></div>
             </div>
           </div>
 
@@ -196,6 +198,7 @@
           <li><b>Finish on an edge.</b> The side without patrols is yours. Claim the target percentage to win the level.</li>
           <li><b>Don't get caught.</b> If a patrol touches a route you are still drawing, you lose a life. Lifting mid-field cancels it for free.</li>
         </ol>
+        <button class="btn" id="tutorialButton" type="button"><svg class="icon" aria-hidden="true"><use href="#i-play" /></svg>Play the tutorial</button>
         <h3 class="dialog-sub">Keys</h3>
         <dl class="keys">
           <div><dt><kbd>P</kbd> / <kbd>Esc</kbd></dt><dd>Pause</dd></div>

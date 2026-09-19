@@ -167,12 +167,14 @@ kbd.only-fine { --show: inline-block; }
 .btn:focus-visible { outline-offset: 2px; }
 kbd { display: inline-block; min-width: 1.7em; margin-inline: 1px; padding: 2px 5px; border: 1px solid var(--line-strong); border-bottom-width: 2px; border-radius: 4px; color: var(--ink-soft); font: 500 10px/1.2 var(--font-ui); text-align: center; text-transform: none; letter-spacing: 0; }
 
-.icon-off, #pauseButton .icon-play { display: none; }
+.icon-off, #pauseButton .icon-play, #pauseButton .icon-skip { display: none; }
 #soundButton[aria-pressed="false"] .icon-on { display: none; }
 #soundButton[aria-pressed="false"] .icon-off { display: inline; }
 #soundButton[aria-pressed="false"] { color: var(--muted); }
-#pauseButton[data-state="paused"] .icon-pause { display: none; }
+#pauseButton[data-state="paused"] .icon-pause, #pauseButton[data-state="skip"] .icon-pause { display: none; }
 #pauseButton[data-state="paused"] .icon-play { display: inline; }
+#pauseButton[data-state="skip"] .icon-skip { display: inline; }
+#pauseButton[data-state="skip"] kbd { display: none !important; }      /* P pauses; it does not skip, so no key hint on Skip */
 
 @media (pointer: fine) { :root:not([data-input="touch"]) { --tap: 36px; } }
 :root[data-input="mouse"] { --tap: 36px; }

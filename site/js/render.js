@@ -56,6 +56,7 @@ export class Renderer {
     this.dirty = true;
     this.frames = 0;                                          // for tests: draws actually performed
     this.reducedMotion = false;                               // stops the dashes on a live route from running
+    this.ghost = null;                                        // where the tutorial's ghost finger was drawn this frame (for tests)
 
     game.on('level', () => this.invalidateStatic());
     game.on('capture', () => this.invalidateStatic());
@@ -78,6 +79,7 @@ export class Renderer {
     ctx.save();
     view.applyTransform(ctx);
     this._drawLiveRoute();
+    this._drawGhost();
     this._drawPatrols(alpha);
     if (game.flash > 0) {
       ctx.fillStyle = `rgba(255,92,77,${game.flash * 0.5})`;
@@ -213,6 +215,46 @@ export class Renderer {
       ctx.arc(route.tip.x, route.tip.y, 3 / scale, 0, Math.PI * 2);
       ctx.fill();
     }
+    ctx.restore();
+  }
+
+  /* The tutorial's ghost finger: a translucent fingertip ring sweeping the gesture to make, with the path it has
+     covered. It is drawn in board units, so it is right on the rotated portrait board too. With reduced motion it
+     does not sweep: it stays at the end of the gesture with the whole path shown. */
+  _drawGhost() {
+    const { ctx, game, view } = this;
+    this.ghost = null;
+    if (!game.tutorial.active || game.phase !== 'playing') return;
+    const g = game.tutorial.ghostAt(performance.now());
+    const y = this.reducedMotion ? g.toY : g.y;
+    const pulse = this.reducedMotion ? 0.5 : g.pulse;
+    this.ghost = { x: g.x, y };
+    const scale = view.fit.scale;                              // CSS px per board unit
+    const colour = this.theme === 'flight' ? '196,255,240' : '255,224,161';
+    ctx.save();
+    if (g.moving || this.reducedMotion) {
+      ctx.setLineDash([6 / scale, 5 / scale]);
+      ctx.lineWidth = 3 / scale;
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = `rgba(${colour},0.55)`;
+      ctx.beginPath();
+      ctx.moveTo(g.x, g.fromY);
+      ctx.lineTo(g.x, y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    const ring = (TIP_RING_PX.coarse * (0.8 + 0.3 * pulse)) / scale;      // a fingertip-sized ring, like the real one
+    ctx.lineWidth = 2.4 / scale;
+    ctx.strokeStyle = `rgba(${colour},0.9)`;
+    ctx.fillStyle = `rgba(${colour},${0.22 + 0.18 * pulse})`;
+    ctx.beginPath();
+    ctx.arc(g.x, y, ring, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(g.x, y, 3.5 / scale, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(${colour},0.95)`;
+    ctx.fill();
     ctx.restore();
   }
 

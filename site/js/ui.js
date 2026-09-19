@@ -3,14 +3,14 @@
 
    Screen-reader output goes through announce(): messages raised in the same tick are joined into one
    sentence, because a polite live region rewritten twice in a row reads only the last write. */
-import { START_LIVES, APP_VERSION } from './config.js';
+import { START_LIVES, APP_VERSION, levelInfo } from './config.js';
 import { PHASE } from './game.js';
 
 const IDS = [
   'app', 'startButton', 'resumeRunButton', 'savedLine', 'againButton', 'reloadButton', 'pauseButton', 'resumeButton', 'restartButton',
   'pauseRestartButton', 'soundButton', 'helpButton', 'settingsButton',
   'levelLabel', 'lives', 'areaLabel', 'targetLabel', 'progressFill', 'targetMarker', 'runnerLabel', 'scoreLabel', 'comboLabel', 'toast',
-  'clearOverlay', 'clearEyebrow', 'clearTotal', 'tally', 'bestScore',
+  'clearOverlay', 'clearEyebrow', 'clearTotal', 'tally', 'nextLabel', 'clearNote', 'tutorialButton', 'bestScore',
   'titleRecords', 'versionLabel', 'versionLine', 'pauseEyebrow', 'pauseTitle', 'receipt', 'endSummary',
   'crashDetail', 'fpsMeter', 'storageNote', 'announcer',
   'settingsDialog', 'helpDialog', 'soundSwitch', 'flightButton', 'driveButton', 'fpsSwitch',
@@ -59,6 +59,7 @@ export class UI {
     this.motionButtons = [...this.el.settingsDialog.querySelectorAll('[data-motion]')];
     this._reduceQuery = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null;
     this._toastTimer = 0;
+    this._coaching = false;                  // the tutorial's message holds the console line
     this._resetTimer = 0;
     this._resetArmed = false;
     this._livesKey = '';
@@ -83,17 +84,18 @@ export class UI {
   _wire() {
     const { game, el } = this;
     const click = (node, handler) => node.addEventListener('click', handler);
-    click(el.startButton, () => game.newRun());
+    click(el.startButton, () => this.startRun());
     click(el.resumeRunButton, () => game.resumeRun());
-    click(el.againButton, () => game.newRun());
+    click(el.againButton, () => this.startRun());
     click(el.reloadButton, () => location.reload());
-    click(el.pauseButton, () => game.togglePause());
+    click(el.pauseButton, () => (game.tutorial.active && game.phase === PHASE.PLAYING ? game.skipTutorial() : game.togglePause()));
     click(el.resumeButton, () => game.resume());
     click(el.restartButton, () => game.restartLevel());
     click(el.pauseRestartButton, () => game.restartLevel());
     click(el.soundButton, () => this.toggleSound());
     click(el.soundSwitch, () => this.toggleSound());
     click(el.helpButton, () => this.openHelp());
+    click(el.tutorialButton, () => { el.helpDialog.close(); game.startTutorial({ origin: 'help' }); });
     click(el.settingsButton, () => this.openSettings());
     click(el.flightButton, () => this.setTheme('flight'));
     click(el.driveButton, () => this.setTheme('drive'));
@@ -118,6 +120,7 @@ export class UI {
     game.on('toast', ({ text, ms }) => this.toast(text, ms));
     game.on('hud', () => { this.renderHud(); this.renderStats(); });
     game.on('saved', () => this.renderSaved());
+    game.on('tutorial', (event) => { this.renderCoach(event); this.renderPhase(); });
     game.on('phase', () => this.renderPhase());
     game.on('countdown', () => this.renderPhase());
     game.on('over', (report) => this.renderOver(report));
@@ -180,12 +183,29 @@ export class UI {
     this.el.resetStatsButton.textContent = 'Reset local records';
   }
 
+  /* Start run and New run: the very first one is the tutorial. */
+  startRun() {
+    if (this.storage.settings.tutorialDone) this.game.newRun();
+    else this.game.startTutorial({ origin: 'start' });
+  }
+
+  /* The tutorial's coach holds the console line (the one place that never covers the board) until it ends. */
+  renderCoach(event) {
+    const { el } = this;
+    this._coaching = event.active;
+    clearTimeout(this._toastTimer);
+    if (!event.active) { el.toast.classList.remove('visible'); return; }
+    el.toast.textContent = event.text;
+    el.toast.classList.add('visible');
+    this.announce(event.text);
+  }
+
   /* Space or Enter with nothing focused: the obvious next step for the current screen. */
   confirm() {
     switch (this.game.phase) {
       case PHASE.TITLE:
       case PHASE.OVER:
-        this.game.newRun();
+        this.startRun();
         return true;
       case PHASE.PAUSED:
       case PHASE.COUNTDOWN:
@@ -208,6 +228,7 @@ export class UI {
   /* One line of console text under the HUD. It sits outside the board so it never covers a place a
      route starts, and it is spoken through announce() rather than being a live region itself. */
   toast(text, ms = 1200) {
+    if (this._coaching) return;
     clearTimeout(this._toastTimer);
     this.el.toast.textContent = text;
     this.el.toast.classList.add('visible');
@@ -356,7 +377,7 @@ export class UI {
     const { el, game } = this;
     const phase = game.phase;
     const paused = phase === PHASE.PAUSED || phase === PHASE.COUNTDOWN;
-    const daily = !!game.run && game.run.mode === 'daily';
+    const daily = !!game.run && (game.run.mode === 'daily' || game.run.mode === 'tutorial');       // neither can be restarted
     el.app.dataset.phase = phase;
 
     if (phase === PHASE.COUNTDOWN) {
@@ -367,8 +388,9 @@ export class UI {
       el.pauseTitle.textContent = game.pauseReason === 'auto' ? 'Paused while you were away.' : 'Take a breath.';
     }
 
-    const label = paused ? 'Resume' : 'Pause';
-    el.pauseButton.dataset.state = paused ? 'paused' : 'running';
+    const coaching = game.tutorial.active && phase === PHASE.PLAYING;
+    const label = paused ? 'Resume' : coaching ? 'Skip tutorial' : 'Pause';
+    el.pauseButton.dataset.state = paused ? 'paused' : coaching ? 'skip' : 'running';
     el.pauseButton.setAttribute('aria-label', label);
     const text = el.pauseButton.querySelector('.btn-text');
     if (text) text.textContent = label;
@@ -399,6 +421,16 @@ export class UI {
   /* The win screen: what the level's captures scored, then each bonus. */
   renderTally(t) {
     const { el } = this;
+    el.nextLabel.textContent = t.tutorial ? 'Play' : 'Next level';
+    el.clearNote.hidden = !t.tutorial;
+    if (t.tutorial) {
+      el.clearEyebrow.textContent = 'Tutorial complete';
+      el.clearTotal.textContent = 'Nice work.';
+      fillRows(el.tally, [['Claimed', `${t.cleared.toFixed(1)}%`], ['To clear a level', `${levelInfo(1).target}%`]]);
+      el.clearNote.textContent = 'A patrol touching a route you are still drawing costs a life. Lifting mid-field is free.';
+      this.announce(`Tutorial complete. You claimed ${Math.round(t.cleared)} percent`);
+      return;
+    }
     el.clearEyebrow.textContent = `Level ${pad2(t.level)} cleared`;
     el.clearTotal.textContent = `+${number(t.total)}`;
     fillRows(el.tally, [

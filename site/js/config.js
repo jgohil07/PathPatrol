@@ -34,6 +34,14 @@ export const SCORE = Object.freeze({
   extraLifeEvery: 25000,
 });
 
+/* The tutorial: one slow patrol on level 1's board and three coached steps. */
+export const TUTORIAL = Object.freeze({
+  speedScale: 0.45,          // the patrol moves at this fraction of level 1's speed
+  minCapture: 5,             // percent: a smaller capture does not finish it (draw across the whole board)
+  dragCells: 20,             // a live route this long counts as "dragged into the field"
+  ghostX: 34,                // where the ghost finger draws, in board units: the left third, away from the patrol
+});
+
 export const STORAGE_KEY = 'pathpatrol:v2';
 export const SNAPSHOT_KEY = 'pathpatrol:v2:run';      // a run in progress, separate from settings and records
 export const LEGACY_KEY = 'color-divide-records-v1';

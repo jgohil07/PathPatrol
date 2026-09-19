@@ -8,7 +8,7 @@ const MOTIONS = ['auto', 'reduced', 'full'];
 
 export const defaultData = () => ({
   v: 2,
-  settings: { sound: true, theme: 'flight', motion: 'auto', showFps: false },
+  settings: { sound: true, theme: 'flight', motion: 'auto', showFps: false, tutorialDone: false },
   records: { bestScore: 0, bestClear: 0, bestLevel: 0, runs: 0, wins: 0 },
 });
 
@@ -24,6 +24,7 @@ export function sanitize(input) {
   if (THEMES.includes(settings.theme)) out.settings.theme = settings.theme;
   if (MOTIONS.includes(settings.motion)) out.settings.motion = settings.motion;
   if (typeof settings.showFps === 'boolean') out.settings.showFps = settings.showFps;
+  if (typeof settings.tutorialDone === 'boolean') out.settings.tutorialDone = settings.tutorialDone;
   for (const key of Object.keys(out.records)) out.records[key] = count(records[key], out.records[key]);
   return out;
 }

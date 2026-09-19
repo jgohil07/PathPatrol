@@ -187,3 +187,24 @@ def test_the_title_with_a_saved_run_on_offer_fits_every_screen_size(open_page, e
     check(page.evaluate(MEASURE), touch, f'{name} title with a saved run')
     OUT.mkdir(parents=True, exist_ok=True)
     page.screenshot(path=str(OUT / f'{engine}-{name}-1b-title-saved.png'))
+
+
+@pytest.mark.parametrize('name,width,height,mode,dpr', SIZES, ids=[s[0] for s in SIZES])
+def test_the_tutorial_screens_fit_every_screen_size(open_page, engine, name, width, height, mode, dpr):
+    """The coached board (with the console line in use and the header button turned into Skip) and the finish screen."""
+    touch = mode == 'touch'
+    page = open_page(tutorial=True, viewport={'width': width, 'height': height}, dpr=dpr, has_touch=touch, is_mobile=touch)
+    OUT.mkdir(parents=True, exist_ok=True)
+    shot = lambda phase: page.screenshot(path=str(OUT / f'{engine}-{name}-{phase}.png'))     # noqa: E731
+    page.click('#startButton') if not touch else page.tap('#startButton')
+    assert page.evaluate('__pp.game.run.mode') == 'tutorial' and page.evaluate('__pp.state().phase') == 'playing'
+    page.evaluate('__pp.freeze(true); __pp.game.tutorial._go(2)')                          # the ghost is mid-sweep on step 2
+    page.evaluate('new Promise((resolve) => setTimeout(resolve, 900))')
+    settle(page)
+    assert page.locator('#toast').is_visible() and page.evaluate('__pp.renderer.ghost') is not None
+    check(page.evaluate(MEASURE), touch, f'{name} tutorial coach')
+    shot('6-tutorial')
+    page.evaluate('__pp.game.finishTutorial({ percent: 33.2, gained: 33.2 })')
+    assert page.evaluate('__pp.state().phase') == 'clear' and page.locator('#clearOverlay').is_visible() and page.locator('#clearNote').is_visible()
+    check(page.evaluate(MEASURE), touch, f'{name} tutorial finish')
+    shot('7-tutorial-done')

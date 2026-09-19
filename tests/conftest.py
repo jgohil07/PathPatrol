@@ -19,6 +19,18 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'tools'))
 import serve  # noqa: E402
 
+# A fresh profile plays the tutorial on its first Start run. Most tests want a plain run, so a page starts with the
+# tutorial already done, unless the test says tutorial=True. It seeds once per tab (sessionStorage marks it), so a
+# test that stores something and reloads, or removes the storage key on purpose, is not overwritten again.
+TUTORIAL_DONE = """(() => { try {
+  if (sessionStorage.getItem('__pp_seeded')) return;
+  sessionStorage.setItem('__pp_seeded', '1');
+  const key = 'pathpatrol:v2';
+  const stored = JSON.parse(localStorage.getItem(key) || 'null') || { v: 2, settings: {}, records: {} };
+  stored.settings = Object.assign({}, stored.settings, { tutorialDone: true });
+  localStorage.setItem(key, JSON.stringify(stored));
+} catch (error) { /* storage blocked: the page will play the tutorial, and the test has other things to say */ } })();"""
+
 ENGINES = [e for e in os.environ.get('PP_ENGINES', 'chromium,webkit').split(',') if e]
 EXTERNAL_FONTS = re.compile(r'https://fonts\.(googleapis|gstatic)\.com/.*')
 
@@ -56,14 +68,16 @@ def engine(browser):
 
 @pytest.fixture
 def open_page(browser, site_url, playwright_instance):
-    """open_page(path='/?debug=1', device=None, viewport=None, dpr=None, init=(), **context_options) -> Page.
+    """open_page(path='/?debug=1', device=None, viewport=None, dpr=None, init=(), tutorial=False, **context_options) -> Page.
+
+    tutorial=True leaves the profile fresh, so the first Start run plays the tutorial; by default it is marked done.
 
     `page.problems` collects everything the browser complained about; the test fails at teardown if it
     is not empty. A test that provokes an error on purpose clears it (page.problems.clear()).
     """
     opened = []
 
-    def _open(path='/?debug=1', *, device=None, viewport=None, dpr=None, init=(), wait_ready=True, **options):
+    def _open(path='/?debug=1', *, device=None, viewport=None, dpr=None, init=(), wait_ready=True, tutorial=False, **options):
         kwargs = dict(playwright_instance.devices[device]) if device else {}
         if viewport:
             kwargs['viewport'] = viewport
@@ -72,6 +86,8 @@ def open_page(browser, site_url, playwright_instance):
         kwargs.update(options)                            # anything else browser.new_context() takes: has_touch, is_mobile, locale...
         context = browser.new_context(**kwargs)
         context.route(EXTERNAL_FONTS, lambda route: route.fulfill(status=200, body='', content_type='text/css'))
+        if not tutorial:
+            context.add_init_script(TUTORIAL_DONE)
         for script in init:
             context.add_init_script(script)
         page = context.new_page()
