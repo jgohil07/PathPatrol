@@ -66,6 +66,21 @@ def test_the_self_hosted_fonts_really_load(open_page):
     assert any(name.startswith('Space Grotesk') for name in loaded), loaded
 
 
+def test_the_fonts_the_page_preloads_are_claimed_by_the_page_and_fetched_once(open_page, site_url):
+    """A preload that the page's own request does not match is a font downloaded twice, and the browser says so a few seconds after the
+    load. The fixture lets that warning pass (it also comes after a reload, harmlessly); on a load that stays it must never come."""
+    page = open_page()
+    heard = []
+    page.on('console', lambda m: heard.append(m.text))
+    page.wait_for_timeout(3600)
+    page.evaluate('0')
+    assert not [text for text in heard if 'preloaded using link preload' in text], heard
+    fonts = [url for url in page.requests if url.endswith('.woff2')]
+    assert len(fonts) == 3 and len(set(fonts)) == 3, fonts                       # two are preloaded, one is not; each was fetched exactly once
+    preloaded = page.evaluate("[...document.querySelectorAll('link[rel=preload][as=font]')].map((l) => l.href)")
+    assert preloaded and set(preloaded) <= set(fonts)
+
+
 def test_nothing_is_fetched_from_outside_the_site(open_page, site_url):
     """No CDN, no analytics, no web fonts from a third party: a visitor's browser only ever talks to us."""
     page = open_page()

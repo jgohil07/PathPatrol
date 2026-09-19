@@ -32,7 +32,9 @@ TUTORIAL_DONE = """(() => { try {
 } catch (error) { /* storage blocked: the page will play the tutorial, and the test has other things to say */ } })();"""
 
 ENGINES = [e for e in os.environ.get('PP_ENGINES', 'chromium,webkit').split(',') if e]
-EXTERNAL_FONTS = re.compile(r'https://fonts\.(googleapis|gstatic)\.com/.*')
+# Chrome says this a few seconds after the load of a document that was replaced (by a reload) before it had claimed its font preloads. Nothing
+# is wrong: a document that stays is never told it (test_design asserts that on a cold load, and that each font is fetched once).
+BENIGN_WARNING = re.compile(r'was preloaded using link preload but not used within a few seconds')
 
 
 @pytest.fixture(scope='session')
@@ -85,7 +87,6 @@ def open_page(browser, site_url, playwright_instance):
             kwargs['device_scale_factor'] = dpr
         kwargs.update(options)                            # anything else browser.new_context() takes: has_touch, is_mobile, locale...
         context = browser.new_context(**kwargs)
-        context.route(EXTERNAL_FONTS, lambda route: route.fulfill(status=200, body='', content_type='text/css'))
         if not tutorial:
             context.add_init_script(TUTORIAL_DONE)
         for script in init:
@@ -95,12 +96,12 @@ def open_page(browser, site_url, playwright_instance):
         page.problems = problems
         page.requests = []                                # every URL the page asked for, for "nothing third-party" checks
         page.on('request', lambda r: page.requests.append(r.url))
-        page.on('console', lambda m: problems.append(f'console.{m.type}: {m.text}') if m.type in ('error', 'warning') else None)
+        page.on('console', lambda m: problems.append(f'console.{m.type}: {m.text}') if m.type in ('error', 'warning') and not BENIGN_WARNING.search(m.text) else None)
         page.on('pageerror', lambda e: problems.append(f'pageerror: {e}'))
         page.on('requestfailed', lambda r: problems.append(f'requestfailed: {r.url}'))
         page.on('response', lambda r: problems.append(f'http {r.status}: {r.url}') if r.status >= 400 else None)
         opened.append((context, page))
-        page.goto(site_url + path)
+        page.goto(path if path.startswith('http') else site_url + path)          # a full URL is for a test that runs its own server
         if wait_ready:
             try:
                 page.wait_for_function('window.__pp !== undefined', timeout=10_000)
@@ -115,6 +116,13 @@ def open_page(browser, site_url, playwright_instance):
         return page
 
     yield _open
+    for _, page in opened:
+        # A problem reported in the last moments of a test (an error in a handler the test's final click set off) may still be on its
+        # way to us: the events are only delivered when we call into the browser. One more round trip, after a beat, lets it arrive.
+        try:
+            page.evaluate('new Promise((resolve) => setTimeout(resolve, 30))')
+        except Exception:
+            pass                                          # closed, crashed or mid-navigation: nothing more to hear from it
     leftovers = [problem for _, page in opened for problem in page.problems]
     for context, _ in opened:
         context.close()

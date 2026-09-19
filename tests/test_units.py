@@ -9,7 +9,7 @@ M = 0xFFFFFFFF
 
 # What a fresh profile's settings are. A new setting is added here once, and every test below that compares
 # settings builds on it with the fields it cares about overridden.
-DEFAULT_SETTINGS = {'sound': True, 'haptics': True, 'theme': 'flight', 'motion': 'auto', 'showFps': False, 'tutorialDone': False}
+DEFAULT_SETTINGS = {'sound': True, 'haptics': True, 'theme': 'flight', 'motion': 'auto', 'showFps': False, 'tutorialDone': False, 'installHintSeen': False}
 
 
 # ---- independent reference implementations (Python) --------------------------------------------
@@ -162,13 +162,13 @@ def test_storage_defaults_and_round_trip(page):
       const backend = backendOf();
       const a = createStorage(backend);
       const defaults = { settings: { ...a.settings }, records: { ...a.records }, persistent: a.persistent };
-      a.updateSettings({ theme: 'drive', sound: false, haptics: false, motion: 'reduced', showFps: true, tutorialDone: true });
+      a.updateSettings({ theme: 'drive', sound: false, haptics: false, motion: 'reduced', showFps: true, tutorialDone: true, installHintSeen: true });
       a.updateRecords((r) => { r.runs = 4; r.bestClear = 61.5; r.bestScore = 12480; });
       const b = createStorage(backend);
       return { defaults, settings: { ...b.settings }, records: { ...b.records }, keys: [...backend.map.keys()] }; }""")
     assert got['defaults'] == {'settings': DEFAULT_SETTINGS,
                                'records': {'bestScore': 0, 'bestClear': 0, 'bestLevel': 0, 'runs': 0, 'wins': 0, 'daily': NO_DAILY}, 'persistent': True}
-    assert got['settings'] == {**DEFAULT_SETTINGS, 'sound': False, 'haptics': False, 'theme': 'drive', 'motion': 'reduced', 'showFps': True, 'tutorialDone': True}
+    assert got['settings'] == {**DEFAULT_SETTINGS, 'sound': False, 'haptics': False, 'theme': 'drive', 'motion': 'reduced', 'showFps': True, 'tutorialDone': True, 'installHintSeen': True}
     assert got['records'] == {'bestScore': 12480, 'bestClear': 61.5, 'bestLevel': 0, 'runs': 4, 'wins': 0, 'daily': NO_DAILY}
     assert got['keys'] == ['pathpatrol:v2']
 
@@ -193,7 +193,7 @@ def test_storage_survives_garbage(page):
       results.notJson = (() => { const s = createStorage(backendOf({ 'pathpatrol:v2': '{nope' })); return { ...s.records }; })();
       results.legacyGarbage = (() => { const s = createStorage(backendOf({ 'color-divide-records-v1': 'also nope' })); return { ...s.records }; })();
       results.wrongTypes = (() => {
-        const blob = { v: 2, settings: { sound: 'yes', haptics: 'no', theme: 'neon', motion: 'sideways', showFps: 'yes', tutorialDone: 1 }, records: { bestScore: 'lots', bestClear: -5, bestLevel: '7', runs: 3, wins: null, extra: 1 } };
+        const blob = { v: 2, settings: { sound: 'yes', haptics: 'no', theme: 'neon', motion: 'sideways', showFps: 'yes', tutorialDone: 1, installHintSeen: 'seen' }, records: { bestScore: 'lots', bestClear: -5, bestLevel: '7', runs: 3, wins: null, extra: 1 } };
         const s = createStorage(backendOf({ 'pathpatrol:v2': JSON.stringify(blob) }));
         return { settings: { ...s.settings }, records: { ...s.records } }; })();
       return results; }""")

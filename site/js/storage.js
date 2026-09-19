@@ -9,7 +9,7 @@ const MOTIONS = ['auto', 'reduced', 'full'];
 
 export const defaultData = () => ({
   v: 2,
-  settings: { sound: true, haptics: true, theme: 'flight', motion: 'auto', showFps: false, tutorialDone: false },
+  settings: { sound: true, haptics: true, theme: 'flight', motion: 'auto', showFps: false, tutorialDone: false, installHintSeen: false },
   records: { bestScore: 0, bestClear: 0, bestLevel: 0, runs: 0, wins: 0, daily: { streak: 0, best: 0, last: '', result: null } },
 });
 
@@ -44,6 +44,7 @@ export function sanitize(input) {
   if (MOTIONS.includes(settings.motion)) out.settings.motion = settings.motion;
   if (typeof settings.showFps === 'boolean') out.settings.showFps = settings.showFps;
   if (typeof settings.tutorialDone === 'boolean') out.settings.tutorialDone = settings.tutorialDone;
+  if (typeof settings.installHintSeen === 'boolean') out.settings.installHintSeen = settings.installHintSeen;
   for (const key of Object.keys(out.records)) out.records[key] = count(records[key], out.records[key]);       // (the daily's record is not a number: it keeps its default here, and is read properly next)
   out.records.daily = cleanDaily(records.daily);
   return out;

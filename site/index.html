@@ -7,8 +7,14 @@
     <meta name="color-scheme" content="dark" />
     <meta name="description" content="A modern homage to classic feature-phone territory-cutting games." />
     <title>Path Patrol — Retro territory game</title>
-    <!-- Placeholder so the browser does not request /favicon.ico (a 404). Phase 6.1 replaces it with the real icons. -->
-    <link rel="icon" href="data:," />
+    <link rel="icon" href="icons/icon.svg" type="image/svg+xml" />
+    <link rel="icon" href="icons/icon-192.png" type="image/png" sizes="192x192" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Path Patrol" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <link rel="preload" href="assets/fonts/dm-mono-400.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="preload" href="assets/fonts/space-grotesk-variable.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="css/app.css" />
@@ -93,6 +99,7 @@
               <p class="daily-line" id="dailyLine"></p>
               <button type="button" class="btn btn--daily" id="shareTodayButton" hidden>Share today's result</button>
               <p class="records" id="titleRecords"></p>
+              <button type="button" class="btn btn--quiet" id="appNotice" hidden>Install app</button>
               <p class="fine">Start on an edge · draw across · finish on an edge</p>
             </div>
           </div>
@@ -184,6 +191,11 @@
           <span class="setting-name" id="fpsLabel">Frame stats</span>
           <button class="switch" id="fpsSwitch" type="button" role="switch" aria-checked="false" aria-labelledby="fpsLabel"><i></i></button>
         </div>
+        <div class="setting" id="appRow">
+          <span class="setting-name" id="appLabel">App</span>
+          <button class="btn" id="appButton" type="button" hidden>Install</button>
+        </div>
+        <p class="fine" id="appStatus"></p>
         <h3 class="dialog-sub">Records on this device</h3>
         <dl class="records-list">
           <div><dt>Best score</dt><dd id="bestScore">0</dd></div>

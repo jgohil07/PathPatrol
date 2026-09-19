@@ -204,6 +204,8 @@ kbd { display: inline-block; min-width: 1.7em; margin-inline: 1px; padding: 2px 
 .cta { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 4px; }
 .cta-wide { flex: 1 1 100%; }                                  /* Resume takes a row of its own, above Start and Daily */
 .btn--daily { border-color: var(--amber); color: var(--amber); }
+.btn--quiet { max-width: 100%; padding-block: 8px; border-color: var(--line-strong); color: var(--ink-soft); font-size: 12px; line-height: 1.4; text-wrap: balance; }      /* the text may wrap (balanced), so it needs the room of lines */
+.btn--quiet[data-mode="update"] { border-color: var(--aqua-dim); color: var(--aqua); }
 .btn--daily span[aria-hidden] { margin-right: 8px; }
 .daily-line { color: var(--amber); font-size: 11.5px; }
 .daily-line:empty { display: none; }
@@ -212,12 +214,15 @@ kbd { display: inline-block; min-width: 1.7em; margin-inline: 1px; padding: 2px 
 .saved { color: var(--amber); font-size: 11.5px; }
 .app[data-saved="yes"] .overlay--title .fine, .app[data-daily="done"] .overlay--title .fine { display: none; }          /* someone resuming knows how to play; the room is needed for the second button */
 .fine { color: var(--muted); font-size: 11px; }
-/* A short screen with a saved run, or a finished daily to share, has no room for the decoration: the symbol and the tagline go,
-   and with both on the title, the records line as well. */
+.app:is([data-notice="update"], [data-notice="install"]) #settingsButton { position: relative; }
+.app:is([data-notice="update"], [data-notice="install"]) #settingsButton::after { content: ""; position: absolute; top: 7px; right: 7px; width: 8px; height: 8px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 0 2px var(--bg); }
+/* A short screen with a saved run, a finished daily to share, or an offer from the app has no room for the decoration: the
+   symbol and the tagline go. With a saved run and one of the others, the records line goes too; and with a saved run and a
+   finished daily, the offer as well. */
 @media (max-height: 640px) {
-  .app[data-saved="yes"] .overlay--title .start-symbol, .app[data-daily="done"] .overlay--title .start-symbol,
-  .app[data-saved="yes"] .overlay--title .tagline, .app[data-daily="done"] .overlay--title .tagline { display: none; }
-  .app[data-saved="yes"][data-daily="done"] .overlay--title .records { display: none; }
+  .app:is([data-saved="yes"], [data-daily="done"], [data-notice="update"], [data-notice="install"], [data-notice="ios"]) .overlay--title :is(.start-symbol, .tagline) { display: none; }
+  .app[data-saved="yes"]:is([data-daily="done"], [data-notice="update"], [data-notice="install"], [data-notice="ios"]) .overlay--title .records { display: none; }
+  .app[data-saved="yes"][data-daily="done"] .overlay--title #appNotice { display: none; }      /* the tallest title: the same offer waits in Settings, marked by a dot on its button */
   .overlay--end .panel { gap: 8px; }                                         /* the game-over card of a daily has six rows and two buttons: tighter */
   .overlay--end .receipt dt, .overlay--end .receipt dd { padding: 3px 0; }
 }

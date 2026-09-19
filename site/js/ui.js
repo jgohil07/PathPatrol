@@ -17,7 +17,7 @@ const IDS = [
   'clearOverlay', 'clearEyebrow', 'clearTotal', 'tally', 'nextLabel', 'clearNote', 'tutorialButton', 'bestScore',
   'titleRecords', 'versionLabel', 'versionLine', 'pauseEyebrow', 'pauseTitle', 'receipt', 'endSummary',
   'crashDetail', 'fpsMeter', 'storageNote', 'announcer',
-  'dailyButton', 'dailyLabel', 'dailyLine', 'shareTodayButton', 'endEyebrow', 'shareButton', 'shareDialog', 'shareText', 'copyShareButton', 'dailyStreak',
+  'appNotice', 'appRow', 'appButton', 'appStatus', 'dailyButton', 'dailyLabel', 'dailyLine', 'shareTodayButton', 'endEyebrow', 'shareButton', 'shareDialog', 'shareText', 'copyShareButton', 'dailyStreak',
   'gameCanvas', 'powers', 'settingsDialog', 'helpDialog', 'soundSwitch', 'hapticsSwitch', 'hapticsRow', 'flightButton', 'driveButton', 'fpsSwitch',
   'bestClear', 'bestLevel', 'runsPlayed', 'levelsWon', 'resetStatsButton',
 ];
@@ -54,13 +54,14 @@ function byId(id) {
 }
 
 export class UI {
-  constructor({ game, storage, renderer, loop = null, sound = null, haptics = null, debug = false }) {
+  constructor({ game, storage, renderer, loop = null, sound = null, haptics = null, pwa = null, debug = false }) {
     this.game = game;
     this.storage = storage;
     this.renderer = renderer;
     this.loop = loop;
     this.sound = sound;
     this.haptics = haptics;
+    this.pwa = pwa;
     this.debug = debug;
     this.el = Object.fromEntries(IDS.map((id) => [id, byId(id)]));
     this.motionButtons = [...this.el.settingsDialog.querySelectorAll('[data-motion]')];
@@ -88,6 +89,7 @@ export class UI {
     this.renderStats();
     this.renderHud();
     this.renderSaved();
+    this.renderApp();
     this.renderPhase();
     document.addEventListener('visibilitychange', () => { if (!document.hidden) this.renderDaily(); });       // midnight may have passed while the page was away
   }
@@ -99,6 +101,8 @@ export class UI {
     click(el.resumeRunButton, () => game.resumeRun());
     click(el.againButton, () => this.startRun());
     click(el.dailyButton, () => this.startDaily());
+    click(el.appNotice, () => this.appAction());
+    click(el.appButton, () => this.appAction());
     click(el.shareButton, () => this.shareResult());
     click(el.shareTodayButton, () => this.shareResult());
     click(el.copyShareButton, () => this.copyShared());
@@ -372,6 +376,44 @@ export class UI {
     else el.dailyLine.textContent = `> daily #${n} started · replays are practice`;
     el.shareTodayButton.hidden = !(played && daily.result);
     el.app.dataset.daily = played && daily.result ? 'done' : 'open';
+  }
+
+  /* --- the app itself (service worker, install) ------------------------------------------------- */
+
+  /* What the one app button should do now, most useful first: take a waiting update, install, or (iOS, which has no prompt)
+     hide the one-time hint. */
+  appMode() {
+    const { pwa } = this;
+    if (!pwa) return null;
+    if (pwa.update) return 'update';
+    if (pwa.canInstall) return 'install';
+    if (pwa.iosHint) return 'ios';
+    return null;
+  }
+
+  renderApp() {
+    const { el, pwa } = this;
+    if (!pwa) return;
+    const mode = this.appMode();
+    el.appNotice.hidden = !mode;
+    el.appNotice.dataset.mode = mode || '';
+    if (mode) el.appNotice.textContent = { update: 'Update ready · tap to restart', install: 'Install app', ios: 'Install: tap Share, then Add to Home Screen. Tap to hide' }[mode];      // (while hidden it keeps a name)
+    el.app.dataset.notice = mode || 'none';                     // lets the CSS make room on a short title
+    el.settingsButton.setAttribute('aria-label', mode === 'update' ? 'Settings (update ready)' : mode === 'install' ? 'Settings (install the app)' : 'Settings');
+    el.appButton.hidden = !(mode === 'update' || mode === 'install');
+    if (mode) el.appButton.textContent = mode === 'update' ? 'Restart' : 'Install';
+    const offline = { ready: 'Ready to play offline.', pending: 'Saving an offline copy…', unsupported: 'Offline play is not available here.' }[pwa.offline];
+    const parts = [pwa.update ? 'A new version is ready.' : '', pwa.installed ? 'Installed.' : '', offline];
+    if (pwa.isIos && !pwa.standalone) parts.push('To install: tap Share, then Add to Home Screen.');
+    el.appStatus.textContent = parts.filter(Boolean).join(' ');
+    if (mode === 'update' && !this._announcedUpdate) { this._announcedUpdate = true; this.announce('Update ready. Restart from the title screen or Settings.'); }
+  }
+
+  async appAction() {
+    const mode = this.appMode();
+    if (mode === 'update') this.pwa.applyUpdate();
+    else if (mode === 'install') { if (await this.pwa.install()) this.toast('Installed', 1400); }
+    else if (mode === 'ios') this.pwa.dismissHint();
   }
 
   /* --- sharing -------------------------------------------------------------------------------- */

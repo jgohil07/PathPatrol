@@ -268,3 +268,81 @@ def test_the_daily_screens_fit_every_screen_size(open_page, engine, name, width,
     assert page.evaluate('document.getElementById("shareDialog").open')
     check(page.evaluate(MEASURE), touch, f'{name} share dialog')
     shot('12-share-dialog')
+
+
+# What the app can be offering on the title: an update waiting, the browser's install prompt, or (iOS) the one-time hint.
+NOTICES = ['update', 'install', 'ios']
+SET_NOTICE = """(what) => {
+  const pwa = __pp.pwa;
+  pwa.update = what === 'update';
+  pwa.installPrompt = what === 'install' ? { prompt: async () => {}, userChoice: Promise.resolve({}) } : null;
+  Object.defineProperty(pwa, 'isIos', { configurable: true, get: () => what === 'ios' });
+  pwa.onChange();
+}"""
+DAILY_DONE = "__pp.game.today = () => '2026-09-25'; __pp.storage.updateRecords((r) => { r.daily.streak = 6; r.daily.best = 9; r.daily.last = '2026-09-25'; r.daily.result = { level: 12, clear: 61.5, score: 1234567, progress: 0.9 }; r.runs = 12; r.bestScore = 1234567; }); __pp.ui.renderStats(); 0"
+
+
+@pytest.mark.parametrize('name,width,height,mode,dpr', SIZES, ids=[s[0] for s in SIZES])
+def test_the_title_with_an_update_or_install_notice_fits_every_screen_size(open_page, engine, name, width, height, mode, dpr):
+    """The notice is one more block on the title, which is already full on a small phone once the daily has been played and a
+    run is saved. Every offer, alone and stacked on the tallest titles, must leave the panel on the board; and where the
+    tallest title has to drop the notice, the Settings button (which shows it too) must say so."""
+    touch = mode == 'touch'
+    page = open_page(viewport={'width': width, 'height': height}, dpr=dpr, has_touch=touch, is_mobile=touch)
+    OUT.mkdir(parents=True, exist_ok=True)
+    for saved in (False, True):
+        if saved:
+            page.evaluate("__pp.storage.updateRecords((r) => { r.daily.last = ''; r.daily.result = null; }); 0")           # the daily is open again, then a run is saved
+            page.evaluate('__pp.game.newRun({ seed: "saved" }); __pp.setPatrols([{ x: 100, y: 60 }]); __pp.cutLine("v", 40); __pp.game.run.score = 1234567; __pp.game.run.nextLifeAt = 1250000; __pp.game.persist(); __pp.game.enterTitle(); 0')
+            page.reload()
+            page.wait_for_function('window.__pp !== undefined')
+            page.wait_for_function('__pp.state().frames > 3')
+        for done in (False, True):
+            if done:
+                page.evaluate(DAILY_DONE)
+            for what in NOTICES:
+                tag = f'{what}{"-daily-done" if done else ""}{"-saved" if saved else ""}'
+                page.evaluate(SET_NOTICE, what)
+                settle(page)
+                assert page.evaluate('__pp.state().phase') == 'title' and page.locator('#resumeRunButton').is_visible() == saved and page.locator('#shareTodayButton').is_visible() == done
+                assert page.evaluate("document.getElementById('appNotice').dataset.mode") == what
+                # The tallest title (a saved run and a played daily) sheds the notice on a short screen: below 640 px high, by the CSS.
+                dropped = saved and done and height <= 640
+                assert page.locator('#appNotice').is_visible() == (not dropped), f'[{name} {tag}] the notice should {"be dropped" if dropped else "show"}'
+                if what != 'ios':                                                    # (the iOS hint has no button in Settings, only the text: the label and the dot are for the two that do)
+                    assert page.get_attribute('#settingsButton', 'aria-label') == f'Settings ({"update ready" if what == "update" else "install the app"})'
+                    assert page.evaluate("getComputedStyle(document.getElementById('settingsButton'), '::after').content") == '""', f'[{name} {tag}] no dot on the Settings button'
+                else:
+                    assert page.evaluate("getComputedStyle(document.getElementById('settingsButton'), '::after').content") == 'none'
+                check(page.evaluate(MEASURE), touch, f'{name} title, {tag}')
+                page.screenshot(path=str(OUT / f'{engine}-{name}-13-notice-{tag}.png'))
+    page.evaluate(SET_NOTICE, 'none')
+    settle(page)
+    assert page.locator('#appNotice').is_hidden() and page.get_attribute('#settingsButton', 'aria-label') == 'Settings'
+    assert page.evaluate("document.getElementById('app').dataset.notice") == 'none'
+
+
+@pytest.mark.parametrize('name,width,height,mode,dpr', SIZES, ids=[s[0] for s in SIZES])
+def test_the_settings_app_row_fits_every_screen_size(open_page, engine, name, width, height, mode, dpr):
+    """Settings gains a row for the app itself: its status line (an update waiting, installed, ready for offline play, and on iOS
+    how to install) and one button, Restart or Install."""
+    touch = mode == 'touch'
+    page = open_page(viewport={'width': width, 'height': height}, dpr=dpr, has_touch=touch, is_mobile=touch)
+    OUT.mkdir(parents=True, exist_ok=True)
+    for what, button in (('update', 'Restart'), ('install', 'Install'), ('ios', None)):
+        page.evaluate(SET_NOTICE, what)
+        page.evaluate("__pp.pwa.installed = false; __pp.pwa.offline = 'ready'; __pp.pwa.onChange(); 0")
+        if what == 'update':
+            page.evaluate("__pp.pwa.installed = true; __pp.pwa.onChange(); 0")              # the longest status: "A new version is ready. Installed. Ready to play offline."
+        page.evaluate('__pp.ui.openSettings()')
+        page.wait_for_function("document.getElementById('settingsDialog').open")
+        settle(page)
+        assert page.locator('#appRow').is_visible() and page.locator('#appStatus').is_visible()
+        if button:
+            assert page.locator('#appButton').is_visible() and (page.locator('#appButton').text_content() or '').strip().lower() == button.lower()
+        else:
+            assert page.locator('#appButton').is_hidden() and 'Add to Home Screen' in (page.locator('#appStatus').text_content() or '')
+        check(page.evaluate(MEASURE), touch, f'{name} settings, {what}')
+        page.screenshot(path=str(OUT / f'{engine}-{name}-14-settings-{what}.png'))
+        page.keyboard.press('Escape')
+        page.wait_for_function("!document.querySelector('dialog[open]')")

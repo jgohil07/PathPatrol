@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <title>Path Patrol</title>
+  <rect width="512" height="512" rx="115.2" fill="#070b12"/>
+  <g fill="#72f4d1" transform="translate(256 256) skewY(-18) translate(-256 -256)">
+    <rect x="122.35" y="244.87" width="69.30" height="118.80" rx="9.90" opacity="0.55"/>
+    <rect x="221.35" y="116.17" width="69.30" height="247.50" rx="9.90" opacity="1.0"/>
+    <rect x="320.35" y="185.47" width="69.30" height="178.20" rx="9.90" opacity="0.76"/>
+  </g>
+</svg>

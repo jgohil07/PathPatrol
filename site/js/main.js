@@ -8,6 +8,7 @@ import { UI } from './ui.js';
 import { Sound } from './audio.js';
 import { Haptics } from './haptics.js';
 import { Fx } from './fx.js';
+import { Pwa } from './pwa.js';
 import { installInputMode, installKeyboard, installPointer } from './input.js';
 
 const debug = new URLSearchParams(location.search).has('debug');
@@ -95,13 +96,18 @@ function boot() {
   const sound = new Sound({ game, storage });
   const haptics = new Haptics({ game, storage });
   const loop = startLoop({ game, renderer, sound });
-  const ui = new UI({ game, storage, renderer, loop, sound, haptics, debug });
+  let ui = null;
+  // The debug page is for development: no service worker, so an edit shows on the next reload (add &sw=1 to test the worker with the hooks).
+  const params = new URLSearchParams(location.search);
+  const pwa = new Pwa({ game, storage, register: !debug || params.has('sw'), onChange: () => { if (ui) ui.renderApp(); } });
+  ui = new UI({ game, storage, renderer, loop, sound, haptics, pwa, debug });
   installKeyboard({ game, ui, view });
   installPointer({ canvas, view, game });
   installAutoPause(game);
   game.enterTitle();
+  pwa.start();
 
-  if (debug) import('./debug.js').then((m) => m.install({ game, view, renderer, ui, storage, loop, sound, haptics }));
+  if (debug) import('./debug.js').then((m) => m.install({ game, view, renderer, ui, storage, loop, sound, haptics, pwa }));
 }
 
 boot();

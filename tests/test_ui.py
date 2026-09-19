@@ -6,7 +6,7 @@ import re
 import pytest
 
 STORE = 'pathpatrol:v2'
-DEFAULT_SETTINGS = {'sound': True, 'haptics': True, 'theme': 'flight', 'motion': 'auto', 'showFps': False, 'tutorialDone': False}
+DEFAULT_SETTINGS = {'sound': True, 'haptics': True, 'theme': 'flight', 'motion': 'auto', 'showFps': False, 'tutorialDone': False, 'installHintSeen': False}
 SCREENS = ('#startOverlay', '#pauseOverlay', '#endOverlay', '#crashOverlay')
 
 

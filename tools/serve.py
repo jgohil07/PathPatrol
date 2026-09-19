@@ -42,10 +42,11 @@ class Server(http.server.ThreadingHTTPServer):
     request_queue_size = 128
 
 
-def make_server(directory, port=0, verbose=False):
-    """A server bound to 127.0.0.1. port=0 picks a free port (see server.server_address)."""
-    handler = type('BoundHandler', (Handler,), {'verbose': verbose})
-    return Server(('127.0.0.1', port), functools.partial(handler, directory=str(directory)))
+def make_server(directory, port=0, verbose=False, handler=Handler):
+    """A server bound to 127.0.0.1. port=0 picks a free port (see server.server_address). A test that needs to see or hold back
+    requests passes a subclass of Handler."""
+    bound = type('BoundHandler', (handler,), {'verbose': verbose})
+    return Server(('127.0.0.1', port), functools.partial(bound, directory=str(directory)))
 
 
 def main():
