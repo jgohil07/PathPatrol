@@ -5,6 +5,9 @@ import { Game, PHASE } from './game.js';
 import { View } from './view.js';
 import { Renderer } from './render.js';
 import { UI } from './ui.js';
+import { Sound } from './audio.js';
+import { Haptics } from './haptics.js';
+import { Fx } from './fx.js';
 import { installInputMode, installKeyboard, installPointer } from './input.js';
 
 const debug = new URLSearchParams(location.search).has('debug');
@@ -14,7 +17,7 @@ const STATS_WINDOW_MS = 500;
 /* Fixed-step simulation with interpolated drawing: motion is identical at 60, 90, 120 or 144 Hz.
    loop.stats is refreshed twice a second: frames per second and the script time one frame costs
    (update plus draw, not the wait for the next vsync). loop.onStats, when set, is called with it. */
-function startLoop({ game, renderer }) {
+function startLoop({ game, renderer, sound }) {
   let last = performance.now();
   let acc = 0;
   let windowStart = last, windowFrames = 0, windowWork = 0, windowMax = 0;
@@ -27,6 +30,7 @@ function startLoop({ game, renderer }) {
 
   function work(dt) {
     game.tick(dt);
+    sound.update();                                     // the drawing hum follows the route, frame by frame
     if (loop.frozen || !game.isStepping()) {
       acc = 0;
     } else {
@@ -35,7 +39,7 @@ function startLoop({ game, renderer }) {
       while (acc >= STEP && steps < MAX_STEPS_PER_FRAME) { game.step(STEP); acc -= STEP; steps++; }
       if (steps === MAX_STEPS_PER_FRAME) acc = 0;      // too slow to catch up: drop the time, don't spiral
     }
-    if (renderer.dirty || game.isAnimating()) renderer.draw(loop.frozen ? 1 : acc / STEP);
+    if (renderer.dirty || game.isAnimating() || (renderer.fx && renderer.fx.active)) renderer.draw(loop.frozen ? 1 : acc / STEP);
   }
 
   function frame(now) {
@@ -84,15 +88,18 @@ function boot() {
   const canvas = document.getElementById('gameCanvas');
   const view = new View(canvas, document.getElementById('stage'));       // the board is fitted into the stage
   const renderer = new Renderer({ canvas, view, game, storage });
+  renderer.fx = new Fx({ game, view });
   view.onChange = () => renderer.resize();
-  const loop = startLoop({ game, renderer });
-  const ui = new UI({ game, storage, renderer, loop, debug });
+  const sound = new Sound({ game, storage });
+  const haptics = new Haptics({ game, storage });
+  const loop = startLoop({ game, renderer, sound });
+  const ui = new UI({ game, storage, renderer, loop, sound, haptics, debug });
   installKeyboard({ game, ui });
   installPointer({ canvas, view, game });
   installAutoPause(game);
   game.enterTitle();
 
-  if (debug) import('./debug.js').then((m) => m.install({ game, view, renderer, ui, storage, loop }));
+  if (debug) import('./debug.js').then((m) => m.install({ game, view, renderer, ui, storage, loop, sound, haptics }));
 }
 
 boot();

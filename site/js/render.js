@@ -57,6 +57,9 @@ export class Renderer {
     this.frames = 0;                                          // for tests: draws actually performed
     this.reducedMotion = false;                               // stops the dashes on a live route from running
     this.ghost = null;                                        // where the tutorial's ghost finger was drawn this frame (for tests)
+    this.fx = null;                                           // particles, popups and shake (set by main.js)
+    this.flashAlpha = 0;                                      // the red "life lost" tint drawn this frame (for tests)
+    this._shake = { x: 0, y: 0 };
 
     game.on('level', () => this.invalidateStatic());
     game.on('capture', () => this.invalidateStatic());
@@ -67,25 +70,39 @@ export class Renderer {
   invalidateStatic() { this.staticDirty = true; this.dirty = true; }
   resize() { this.invalidateStatic(); }
   setTheme(theme) { this.theme = theme; this.invalidateStatic(); }
-  setReducedMotion(on) { this.reducedMotion = !!on; }
+  setReducedMotion(on) {
+    this.reducedMotion = !!on;
+    if (this.fx) { this.fx.reducedMotion = !!on; if (on) this.fx.clear(); }
+  }
 
   /* alpha: how far between the last two physics steps this frame falls (0..1). */
   draw(alpha = 1) {
-    const { view, game, ctx } = this;
+    const { view, game, ctx, fx } = this;
     if (!view.fit || !game.level) return;
+    const now = performance.now();
+    if (fx) fx.update(now);
     if (this.staticDirty) this._buildStatic();
+    const shake = fx ? fx.shakeOffset(now, view.fit.ratio, this._shake) : this._shake;      // device pixels; 0, 0 when still
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.drawImage(this.layer, 0, 0);
+    if (shake.x !== 0 || shake.y !== 0) {                                                       // a shaken board leaves a sliver: fill it with the frame's colour
+      ctx.fillStyle = '#0b1422';
+      ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    }
+    ctx.drawImage(this.layer, shake.x, shake.y);
     ctx.save();
-    view.applyTransform(ctx);
+    view.applyTransform(ctx, shake.x, shake.y);
     this._drawLiveRoute();
     this._drawGhost();
     this._drawPatrols(alpha);
-    if (game.flash > 0) {
-      ctx.fillStyle = `rgba(255,92,77,${game.flash * 0.5})`;
+    if (fx) fx.drawBoard(ctx, now, view.fit.scale);
+    // The red tint for a lost life. With reduced motion it is a faint steady tint, not a flash.
+    this.flashAlpha = game.flash > 0 ? Math.min(game.flash * 0.5, this.reducedMotion ? 0.12 : 0.5) : 0;
+    if (this.flashAlpha > 0) {
+      ctx.fillStyle = `rgba(255,92,77,${this.flashAlpha})`;
       ctx.fillRect(0, 0, BOARD_W, BOARD_H);
     }
     ctx.restore();
+    if (fx) fx.drawPopups(ctx, now, view.fit.ratio, shake.x, shake.y);
     this.dirty = false;
     this.frames++;
   }

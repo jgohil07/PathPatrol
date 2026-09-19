@@ -8,7 +8,7 @@ const MOTIONS = ['auto', 'reduced', 'full'];
 
 export const defaultData = () => ({
   v: 2,
-  settings: { sound: true, theme: 'flight', motion: 'auto', showFps: false, tutorialDone: false },
+  settings: { sound: true, haptics: true, theme: 'flight', motion: 'auto', showFps: false, tutorialDone: false },
   records: { bestScore: 0, bestClear: 0, bestLevel: 0, runs: 0, wins: 0 },
 });
 
@@ -21,6 +21,7 @@ export function sanitize(input) {
   const settings = isObject(input) && isObject(input.settings) ? input.settings : {};
   const records = isObject(input) && isObject(input.records) ? input.records : {};
   if (typeof settings.sound === 'boolean') out.settings.sound = settings.sound;
+  if (typeof settings.haptics === 'boolean') out.settings.haptics = settings.haptics;
   if (THEMES.includes(settings.theme)) out.settings.theme = settings.theme;
   if (MOTIONS.includes(settings.motion)) out.settings.motion = settings.motion;
   if (typeof settings.showFps === 'boolean') out.settings.showFps = settings.showFps;

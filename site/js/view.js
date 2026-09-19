@@ -86,7 +86,19 @@ export class View {
     if (this._pending) { this._pending = false; this.measure(); }
   }
 
-  applyTransform(ctx) { ctx.setTransform(...boardMatrix(this.fit)); }
+  /* dx, dy: a nudge in device pixels (the screen shake). The DOM never moves, so pointer mapping stays exact. */
+  applyTransform(ctx, dx = 0, dy = 0) {
+    const m = boardMatrix(this.fit);
+    ctx.setTransform(m[0], m[1], m[2], m[3], m[4] + dx, m[5] + dy);
+  }
+
+  /* A board position as a canvas (device pixel) position, whatever the rotation. */
+  toCanvas(x, y, out = { x: 0, y: 0 }) {
+    const m = boardMatrix(this.fit);
+    out.x = m[0] * x + m[2] * y + m[4];
+    out.y = m[1] * x + m[3] * y + m[5];
+    return out;
+  }
 
   /* Client (viewport) coordinates -> board units. */
   toBoard(clientX, clientY, out = { x: 0, y: 0 }) {

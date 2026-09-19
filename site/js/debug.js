@@ -5,9 +5,9 @@ import { FIELD, ROUTE, toCell } from './grid.js';
 import { boardToFraction } from './view.js';
 import { makePatrol } from './physics.js';
 
-export function install({ game, view, renderer, ui, storage, loop }) {
+export function install({ game, view, renderer, ui, storage, loop, sound, haptics }) {
   const pp = {
-    game, view, renderer, ui, storage, loop,
+    game, view, renderer, ui, storage, loop, sound, haptics, fx: renderer.fx,
 
     /* Plain-data snapshot of everything a test usually asserts on. */
     state() {

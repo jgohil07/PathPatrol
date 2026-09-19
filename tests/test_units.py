@@ -7,6 +7,10 @@ import pytest
 
 M = 0xFFFFFFFF
 
+# What a fresh profile's settings are. A new setting is added here once, and every test below that compares
+# settings builds on it with the fields it cares about overridden.
+DEFAULT_SETTINGS = {'sound': True, 'haptics': True, 'theme': 'flight', 'motion': 'auto', 'showFps': False, 'tutorialDone': False}
+
 
 # ---- independent reference implementations (Python) --------------------------------------------
 def ref_hash(text):
@@ -149,13 +153,13 @@ def test_storage_defaults_and_round_trip(page):
       const backend = backendOf();
       const a = createStorage(backend);
       const defaults = { settings: { ...a.settings }, records: { ...a.records }, persistent: a.persistent };
-      a.updateSettings({ theme: 'drive', sound: false, motion: 'reduced', showFps: true, tutorialDone: true });
+      a.updateSettings({ theme: 'drive', sound: false, haptics: false, motion: 'reduced', showFps: true, tutorialDone: true });
       a.updateRecords((r) => { r.runs = 4; r.bestClear = 61.5; r.bestScore = 12480; });
       const b = createStorage(backend);
       return { defaults, settings: { ...b.settings }, records: { ...b.records }, keys: [...backend.map.keys()] }; }""")
-    assert got['defaults'] == {'settings': {'sound': True, 'theme': 'flight', 'motion': 'auto', 'showFps': False, 'tutorialDone': False},
+    assert got['defaults'] == {'settings': DEFAULT_SETTINGS,
                                'records': {'bestScore': 0, 'bestClear': 0, 'bestLevel': 0, 'runs': 0, 'wins': 0}, 'persistent': True}
-    assert got['settings'] == {'sound': False, 'theme': 'drive', 'motion': 'reduced', 'showFps': True, 'tutorialDone': True}
+    assert got['settings'] == {**DEFAULT_SETTINGS, 'sound': False, 'haptics': False, 'theme': 'drive', 'motion': 'reduced', 'showFps': True, 'tutorialDone': True}
     assert got['records'] == {'bestScore': 12480, 'bestClear': 61.5, 'bestLevel': 0, 'runs': 4, 'wins': 0}
     assert got['keys'] == ['pathpatrol:v2']
 
@@ -168,7 +172,7 @@ def test_storage_migrates_the_prototype_records(page):
       const before = { settings: { ...s.settings }, records: { ...s.records } };
       s.updateSettings({});                                   // any write creates the v2 key
       return { before, keys: [...backend.map.keys()].sort(), legacyIntact: backend.map.get('color-divide-records-v1') === legacy }; }""")
-    assert got['before'] == {'settings': {'sound': True, 'theme': 'drive', 'motion': 'auto', 'showFps': False, 'tutorialDone': False},
+    assert got['before'] == {'settings': {**DEFAULT_SETTINGS, 'theme': 'drive'},
                              'records': {'bestScore': 0, 'bestClear': 55.5, 'bestLevel': 4, 'runs': 9, 'wins': 3}}       # the prototype kept no score
     assert got['keys'] == ['color-divide-records-v1', 'pathpatrol:v2']
     assert got['legacyIntact']
@@ -180,13 +184,13 @@ def test_storage_survives_garbage(page):
       results.notJson = (() => { const s = createStorage(backendOf({ 'pathpatrol:v2': '{nope' })); return { ...s.records }; })();
       results.legacyGarbage = (() => { const s = createStorage(backendOf({ 'color-divide-records-v1': 'also nope' })); return { ...s.records }; })();
       results.wrongTypes = (() => {
-        const blob = { v: 2, settings: { sound: 'yes', theme: 'neon', motion: 'sideways', showFps: 'yes', tutorialDone: 1 }, records: { bestScore: 'lots', bestClear: -5, bestLevel: '7', runs: 3, wins: null, extra: 1 } };
+        const blob = { v: 2, settings: { sound: 'yes', haptics: 'no', theme: 'neon', motion: 'sideways', showFps: 'yes', tutorialDone: 1 }, records: { bestScore: 'lots', bestClear: -5, bestLevel: '7', runs: 3, wins: null, extra: 1 } };
         const s = createStorage(backendOf({ 'pathpatrol:v2': JSON.stringify(blob) }));
         return { settings: { ...s.settings }, records: { ...s.records } }; })();
       return results; }""")
     zero = {'bestScore': 0, 'bestClear': 0, 'bestLevel': 0, 'runs': 0, 'wins': 0}
     assert got['notJson'] == zero and got['legacyGarbage'] == zero
-    assert got['wrongTypes'] == {'settings': {'sound': True, 'theme': 'flight', 'motion': 'auto', 'showFps': False, 'tutorialDone': False},
+    assert got['wrongTypes'] == {'settings': DEFAULT_SETTINGS,                                            # every wrong type falls back to its default
                                  'records': {'bestScore': 0, 'bestClear': 0, 'bestLevel': 0, 'runs': 3, 'wins': 0}}
 
 
@@ -203,11 +207,11 @@ def test_storage_that_throws_still_works_in_memory(page):
 def test_reset_records_keeps_settings(page):
     got = page.evaluate("async () => {" + STORAGE_PRELUDE + """
       const s = createStorage(backendOf());
-      s.updateSettings({ theme: 'drive', sound: false, motion: 'full', showFps: true, tutorialDone: true });
+      s.updateSettings({ theme: 'drive', sound: false, haptics: false, motion: 'full', showFps: true, tutorialDone: true });
       s.updateRecords((r) => { r.runs = 7; r.wins = 2; r.bestLevel = 5; r.bestClear = 66; r.bestScore = 9000; });
       s.resetRecords();
       return { settings: { ...s.settings }, records: { ...s.records } }; }""")
-    assert got['settings'] == {'sound': False, 'theme': 'drive', 'motion': 'full', 'showFps': True, 'tutorialDone': True}     # D9: the prototype dropped the theme here
+    assert got['settings'] == {**DEFAULT_SETTINGS, 'sound': False, 'haptics': False, 'theme': 'drive', 'motion': 'full', 'showFps': True, 'tutorialDone': True}     # D9: the prototype dropped the theme here
     assert got['records'] == {'bestScore': 0, 'bestClear': 0, 'bestLevel': 0, 'runs': 0, 'wins': 0}
 
 

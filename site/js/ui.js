@@ -13,7 +13,7 @@ const IDS = [
   'clearOverlay', 'clearEyebrow', 'clearTotal', 'tally', 'nextLabel', 'clearNote', 'tutorialButton', 'bestScore',
   'titleRecords', 'versionLabel', 'versionLine', 'pauseEyebrow', 'pauseTitle', 'receipt', 'endSummary',
   'crashDetail', 'fpsMeter', 'storageNote', 'announcer',
-  'settingsDialog', 'helpDialog', 'soundSwitch', 'flightButton', 'driveButton', 'fpsSwitch',
+  'settingsDialog', 'helpDialog', 'soundSwitch', 'hapticsSwitch', 'hapticsRow', 'flightButton', 'driveButton', 'fpsSwitch',
   'bestClear', 'bestLevel', 'runsPlayed', 'levelsWon', 'resetStatsButton',
 ];
 
@@ -49,11 +49,13 @@ function byId(id) {
 }
 
 export class UI {
-  constructor({ game, storage, renderer, loop = null, debug = false }) {
+  constructor({ game, storage, renderer, loop = null, sound = null, haptics = null, debug = false }) {
     this.game = game;
     this.storage = storage;
     this.renderer = renderer;
     this.loop = loop;
+    this.sound = sound;
+    this.haptics = haptics;
     this.debug = debug;
     this.el = Object.fromEntries(IDS.map((id) => [id, byId(id)]));
     this.motionButtons = [...this.el.settingsDialog.querySelectorAll('[data-motion]')];
@@ -73,6 +75,7 @@ export class UI {
     this.el.versionLine.textContent = `v${APP_VERSION}`;
     this.renderTheme();
     this.renderSound();
+    this.renderHaptics();
     this.renderMotion();
     this.renderFps();
     this.renderStats();
@@ -94,6 +97,7 @@ export class UI {
     click(el.pauseRestartButton, () => game.restartLevel());
     click(el.soundButton, () => this.toggleSound());
     click(el.soundSwitch, () => this.toggleSound());
+    click(el.hapticsSwitch, () => this.setHaptics(!this.storage.settings.haptics));
     click(el.helpButton, () => this.openHelp());
     click(el.tutorialButton, () => { el.helpDialog.close(); game.startTutorial({ origin: 'help' }); });
     click(el.settingsButton, () => this.openSettings());
@@ -138,7 +142,14 @@ export class UI {
     const on = !this.storage.settings.sound;
     this.storage.updateSettings({ sound: on });
     this.renderSound();
+    if (this.sound) this.sound.sync();                  // switching on inside this click is the gesture that lets audio start
     this.toast(on ? 'Sound on' : 'Sound off', 800);
+  }
+
+  setHaptics(on) {
+    this.storage.updateSettings({ haptics: on });
+    this.renderHaptics();
+    if (on && this.haptics) this.haptics.pulse('medium');           // a taste of it, so the switch is not silent
   }
 
   setTheme(theme) {
@@ -347,6 +358,13 @@ export class UI {
     const on = this.storage.settings.sound;
     this.el.soundButton.setAttribute('aria-pressed', String(on));
     this.el.soundSwitch.setAttribute('aria-checked', String(on));
+  }
+
+  /* The vibration switch exists only where the browser can vibrate (Android; not iOS Safari). */
+  renderHaptics() {
+    const { el } = this;
+    el.hapticsRow.hidden = !!this.haptics && !this.haptics.supported;
+    el.hapticsSwitch.setAttribute('aria-checked', String(this.storage.settings.haptics));
   }
 
   /* "Auto" follows the operating system; the choice also decides whether the board animates. */

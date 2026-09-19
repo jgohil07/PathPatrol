@@ -6,6 +6,7 @@ import re
 import pytest
 
 STORE = 'pathpatrol:v2'
+DEFAULT_SETTINGS = {'sound': True, 'haptics': True, 'theme': 'flight', 'motion': 'auto', 'showFps': False, 'tutorialDone': False}
 SCREENS = ('#startOverlay', '#pauseOverlay', '#endOverlay', '#crashOverlay')
 
 
@@ -81,7 +82,7 @@ def test_settings_pauses_the_game_and_owns_the_keyboard_until_it_closes(open_pag
     after = state(page)
     assert after['phase'] == 'paused'                              # P did not resume it behind the dialog
     assert after['clock']['epoch'] == before['clock']['epoch']     # R R did not restart the level
-    assert page.evaluate('__pp.storage.settings') == {'sound': True, 'theme': 'flight', 'motion': 'auto', 'showFps': False, 'tutorialDone': True}
+    assert page.evaluate('__pp.storage.settings') == {**DEFAULT_SETTINGS, 'tutorialDone': True}              # untouched by every key pressed
     assert not is_open(page, 'helpDialog')
 
     page.keyboard.press('Escape')

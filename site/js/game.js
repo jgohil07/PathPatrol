@@ -406,7 +406,7 @@ export class Game extends Emitter {
     if (polyline) level.routes.push(polyline);
     level.cleared = ((level.initialPlayable - after) / level.initialPlayable) * 100;
     const gained = level.cleared - previous;
-    const result = { percent: level.cleared, gained, cellsClaimed: before - after, points: 0, capturePoints: 0, closePoints: 0, closeCalls, combo: 1, nextCombo: 1 };
+    const result = { percent: level.cleared, gained, cellsClaimed: before - after, points: 0, capturePoints: 0, closePoints: 0, closeCalls, combo: 1, nextCombo: 1, route: polyline || null };
     const real = !!this.run && this.run.mode !== 'tutorial';                 // the tutorial is practice: no score, no records, no save
     if (real) Object.assign(result, this._scoreCapture(this.run, gained, closeCalls));
     if (real) this.storage.updateRecords((r) => { r.bestClear = Math.max(r.bestClear, level.cleared); });
