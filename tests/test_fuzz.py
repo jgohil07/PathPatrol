@@ -24,7 +24,7 @@ FUZZ = """
     const isDaily = seed % 3 === 0;                                   // a third of the games are dailies, each on its own pinned day
     if (isDaily) { game.today = () => '2026-09-' + String(10 + (seed % 15)); out.dailyGames++; }
     const begin = (tag) => { if (isDaily) game.startDaily(); else game.newRun({ seed: 'fuzz-' + seed + tag }); };      // (a second daily on the same day is practice)
-    game.enterTitle(); begin(''); game.startLevel(1 + (seed % 9));
+    game.enterTitle(); begin(''); game.startLevel(1 + ((seed * 7) % 24));           // levels 1-24: the whole curve, up to 8 patrols at 30 u/s
     out.games++;
     const save = game.persist.bind(game);                             // whatever the game writes, its own check must accept: a save it cannot read back loses the run
     game.persist = () => { save(); const raw = game.storage.loadSnapshot(); if (raw) { out.saves++; if (validateSnapshot(raw, { today: game.today() }) === null) note(`seed ${seed}: the game wrote a snapshot that its own check rejects`); } };
@@ -130,7 +130,7 @@ FUZZ = """
     for (let i = 0; i < 2400; i++) {                                   // 20 seconds of game time
       const n = 1 + Math.floor(rnd() * 3); for (let k = 0; k < n; k++) { game.step(STEP); out.steps++; }
       check('after a step');
-      if (game.phase === 'over') { begin('-' + i); game.startLevel(1 + Math.floor(rnd() * 8)); route.end('cancel'); bot = null; continue; }
+      if (game.phase === 'over') { begin('-' + i); game.startLevel(1 + Math.floor(rnd() * 24)); route.end('cancel'); bot = null; continue; }
       const roll = rnd();
       if (game.tracers.list.length) out.tracerLevels++;
       if (roll < 0.004 && game.isPlaying()) { game.pause('manual'); out.pauses++; check('after a pause'); game.resume(); if (game.phase === 'countdown') game.resume(); bot = null; }

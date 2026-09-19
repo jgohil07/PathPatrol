@@ -266,6 +266,30 @@ def test_advance_is_cheap_enough_for_a_phone(page):
     assert got['msPerStep'] < 0.4, got                    # a 60 fps frame runs 2 steps; the whole frame budget is 16 ms
 
 
+def test_the_top_of_the_curve_costs_little_and_breaks_no_rule_on_real_levels(page):
+    """Levels 13 to 25 as the game builds them (up to eight patrols at 30 u/s among six obstacles), left to run for a minute and a
+    half of game time each, and again after a big cut has claimed half the board. Cheap, constant speed, never inside a wall,
+    never out of the ground each patrol started on. (Random boards would not do: they can contain throats narrower than a
+    patrol, where one wedges a hair inside a wall, which is a different, already accepted, matter.)"""
+    got = run(page, """const { buildLevel } = await import('/js/level.js');
+      const problems = []; let steps = 0, worst = 0, drift = 0, msPerStep = 0, most = 0, fastest = 0, boards = 0;
+      for (const level of [13, 16, 20, 25]) for (let seed = 1; seed <= 3; seed++) for (const claimed of [false, true]) {
+        const g = new Grid(); const lvl = buildLevel(level, 'top' + seed, g); const ps = lvl.patrols;
+        if (claimed) { const x = Math.floor(60 * S); for (let y = 0; y < g.h; y++) if (g.get(x, y) === FIELD) g.set(x, y, WALL); }   // a wall down the middle: the side without patrols is not needed here
+        const regs = ps.map((p) => region(g, p.x, p.y)); most = Math.max(most, ps.length); fastest = Math.max(fastest, ps[0].speed); boards++;
+        for (let i = 0; i < 10800; i++) { advance(ps, STEP, g); steps++;
+          for (let k = 0; k < ps.length; k++) { const p = ps[k];
+            if (!Number.isFinite(p.x + p.y + p.vx + p.vy)) { problems.push(`level ${level} seed ${seed}: not finite`); i = 1e9; break; }
+            drift = Math.max(drift, Math.abs(Math.hypot(p.vx, p.vy) - p.speed));
+            if (!regs[k].seen[Math.floor(p.y * S) * g.w + Math.floor(p.x * S)]) { problems.push(`level ${level} seed ${seed}: patrol ${k} left its ground`); i = 1e9; break; }
+            if (g.circleHitsSolid(p.x, p.y, R - 0.001)) { let lo = 0.001, hi = R; for (let b = 0; b < 30; b++) { const mid = (lo + hi) / 2; if (g.circleHitsSolid(p.x, p.y, R - mid)) lo = mid; else hi = mid; } worst = Math.max(worst, lo); } } }
+        const t0 = performance.now(); for (let i = 0; i < 5000; i++) advance(ps, STEP, g); msPerStep = Math.max(msPerStep, (performance.now() - t0) / 5000); }
+      return { problems: problems.slice(0, 3), steps, worst, drift, msPerStep, most, fastest, boards }; """)
+    assert got['problems'] == [] and got['boards'] == 24 and got['most'] == 8 and got['fastest'] == pytest.approx(30, abs=1e-9) and got['steps'] > 200000
+    assert got['drift'] < 1e-9 and got['worst'] <= 0.02, got
+    assert got['msPerStep'] < 0.6, got                                                    # (the six-patrol board above must stay under 0.4)
+
+
 # ---- after a capture ---------------------------------------------------------------------------------------
 def test_settle_moves_a_patrol_clear_of_a_wall_that_appears_on_it(page):
     got = run(page, """const g = framed(); const p = makePatrol(60, 36, 20, 0); g.fillRect(Math.floor(60 * S), 60, Math.floor(70 * S), 90, WALL);      // a wall lands on the patrol's right side

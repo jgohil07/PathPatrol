@@ -89,16 +89,24 @@ def test_rng_helpers(page):
 
 # ---- config ------------------------------------------------------------------------------------
 def test_level_curve(page):
-    levels = [1, 2, 3, 4, 7, 13, 14, 30]
+    levels = [1, 2, 3, 4, 7, 10, 11, 12, 13, 15, 16, 19, 22, 25, 30, 99]
     infos = page.evaluate("async (levels) => { const { levelInfo } = await import('/js/config.js'); return levels.map(levelInfo); }", levels)
     for level, info in zip(levels, infos):
         assert info['level'] == level
-        assert info['patrols'] == min(6, 1 + (level - 1) // 2)
-        assert info['obstacles'] == min(5, (level - 1) // 2)
-        assert info['target'] == min(70, 65 + ((level - 1) // 2) * 2)
-        assert info['tracers'] == (min(3, (level - 1) // 3) if level >= 4 else 0)
-        assert info['speed'] == pytest.approx(min(26, 14 * (1 + 0.07 * (level - 1))))
-    assert max(i['speed'] for i in infos) == 26          # capped: D7
+        assert info['patrols'] == min(8, 1 + (level - 1) // 2)
+        assert info['obstacles'] == min(6, (level - 1) // 2)
+        early = min(70, 65 + ((level - 1) // 2) * 2)
+        assert info['target'] == min(75, early if level <= 10 else 70 + (level - 10) // 3)
+        assert info['tracers'] == (min(4, (level - 1) // 3) if level >= 4 else 0)
+        assert info['speed'] == pytest.approx(min(30, 14 * (1 + 0.07 * (level - 1))))
+    assert max(i['speed'] for i in infos) == 30          # capped: D7
+    # Written out, so that a change to the curve is a decision and not a side effect: the plan's numbers up to level 12
+    # (which the measured difficulty curve was built on), then the extended ramp.
+    table = {1: (1, 65, 0, 0), 2: (1, 65, 0, 0), 3: (2, 67, 1, 0), 4: (2, 67, 1, 1), 7: (4, 70, 3, 2), 10: (5, 70, 4, 3),
+             11: (6, 70, 5, 3), 12: (6, 70, 5, 3), 13: (7, 71, 6, 4), 15: (8, 71, 6, 4), 16: (8, 72, 6, 4), 19: (8, 73, 6, 4), 22: (8, 74, 6, 4), 25: (8, 75, 6, 4), 99: (8, 75, 6, 4)}
+    for level, (patrols, target, obstacles, tracers) in table.items():
+        info = infos[levels.index(level)]
+        assert (info['patrols'], info['target'], info['obstacles'], info['tracers']) == (patrols, target, obstacles, tracers), level
     odd = page.evaluate("async () => { const { levelInfo } = await import('/js/config.js'); return [levelInfo(0).level, levelInfo(2.7).level, levelInfo(-5).level]; }")
     assert odd == [1, 2, 1]
 

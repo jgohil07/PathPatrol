@@ -125,7 +125,7 @@ def test_positions_along_a_loop_interpolate_wrap_and_find_the_nearest_edge(page)
 
 
 # ---- spawning --------------------------------------------------------------------------------------------------------
-def test_tracers_appear_from_level_four_one_more_every_three_levels_up_to_three(page):
+def test_tracers_appear_from_level_four_one_more_every_three_levels_up_to_four(page):
     got = js(page, """
       const counts = {}; for (const level of [1, 2, 3, 4, 5, 6, 7, 9, 10, 13, 30]) counts[level] = setup(level).tracers.list.length;
       const info = [1, 4, 7, 10, 13].map((l) => levelInfo(l).tracers);
@@ -133,8 +133,8 @@ def test_tracers_appear_from_level_four_one_more_every_three_levels_up_to_three(
       const tutorial = new Game({ storage: createStorage(backendOf()) }); tutorial.enterTitle(); tutorial.startTutorial();
       const title = new Game({ storage: createStorage(backendOf()) }); title.enterTitle();
       return { counts, info, onLoop, tutorial: tutorial.tracers.list.length, attract: title.tracers.list.length };""")
-    assert got['counts'] == {'1': 0, '2': 0, '3': 0, '4': 1, '5': 1, '6': 1, '7': 2, '9': 2, '10': 3, '13': 3, '30': 3}
-    assert got['info'] == [0, 1, 2, 3, 3] and got['onLoop'] is True
+    assert got['counts'] == {'1': 0, '2': 0, '3': 0, '4': 1, '5': 1, '6': 1, '7': 2, '9': 2, '10': 3, '13': 4, '30': 4}
+    assert got['info'] == [0, 1, 2, 3, 4] and got['onLoop'] is True
     assert got['tutorial'] == 0 and got['attract'] == 1                              # none in the tutorial; the title's level 6 has one crawling
 
 

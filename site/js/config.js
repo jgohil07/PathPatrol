@@ -61,15 +61,22 @@ export const SNAPSHOT_KEY = 'pathpatrol:v2:run';      // a run in progress, sepa
 export const LEGACY_KEY = 'color-divide-records-v1';
 
 /* Difficulty curve. Speed is capped so a route is always outrunnable by a quick hand. */
+/* The difficulty curve. Up to level 12 it is the plan's: a patrol more every two levels, speed up 7 % a level, an
+   obstacle every two, a tracer every three from level 4, and the target rising from 65 % to 70 % by level 7. Measured with
+   bots in Phase 5.6 (research/tuning-*), every one of those hit its cap by level 11-14, so levels 12 and up were all the
+   same; the caps are now higher (8 patrols, 30 u/s, 6 obstacles, 4 tracers, and a target that goes on to 75 %), which
+   keeps the ramp going to about level 20 without making any level up to 12 different. */
 export function levelInfo(level) {
   const l = Math.max(1, Math.floor(level));
+  const early = Math.min(70, 65 + Math.floor((l - 1) / 2) * 2);       // 65 %, rising to 70 % by level 7
+  const late = Math.max(0, Math.floor((l - 10) / 3));                  // then a point more every three levels, from level 13
   return {
     level: l,
-    patrols: Math.min(6, 1 + Math.floor((l - 1) / 2)),
-    speed: Math.min(26, 14 * (1 + 0.07 * (l - 1))),
-    target: Math.min(70, 65 + Math.floor((l - 1) / 2) * 2),
-    obstacles: Math.min(5, Math.floor((l - 1) / 2)),
-    tracers: l >= 4 ? Math.min(3, Math.floor((l - 1) / 3)) : 0,
+    patrols: Math.min(8, 1 + Math.floor((l - 1) / 2)),
+    speed: Math.min(30, 14 * (1 + 0.07 * (l - 1))),
+    target: Math.min(75, early + late),
+    obstacles: Math.min(6, Math.floor((l - 1) / 2)),
+    tracers: Math.min(4, Math.floor((l - 1) / 3)),                     // none until level 4, then one more every three
     powerups: l >= 3,
   };
 }
