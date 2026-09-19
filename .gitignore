@@ -1,0 +1,135 @@
+# ─── macOS ───────────────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.AppleDouble
+.LSOverride
+.Spotlight-V100
+.DocumentRevisions-V100
+.fseventsd
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+Icon[[:cntrl:]]
+
+# ─── Windows ─────────────────────────────────────────────────────────────
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# ─── Linux ───────────────────────────────────────────────────────────────
+*~
+.directory
+.Trash-*
+.nfs*
+
+# ─── AI assistants: config, transcripts and scratch output ───────────────
+.claude/
+.claude*
+CLAUDE.md
+CLAUDE.local.md
+.cursor/
+.cursorrules
+.cursorignore
+.aider*
+.continue/
+.windsurfrules
+.codeium/
+.gemini/
+.opencode/
+.antigravity/
+.cagent/
+.ai/
+
+# ─── Planning / progress scratch files ───────────────────────────────────
+# Working notes an assistant or IDE may drop in the repo. If you ever want a
+# real one of these tracked, add it with `git add -f`.
+PLAN.md
+PLANS.md
+PROGRESS.md
+NOTES.local.md
+TODO.local.md
+SCRATCH.md
+plan-*.md
+progress-*.md
+*.plan.md
+*.progress.md
+.plans/
+.progress/
+.scratch/
+scratchpad/
+
+# ─── Secrets and local environment ───────────────────────────────────────
+.env
+.env.*
+!.env.example
+!.env.sample
+*.local
+secrets.*
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+.netrc
+.npmrc
+
+# ─── Editors ─────────────────────────────────────────────────────────────
+.vscode/
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+*.sublime-workspace
+
+# ─── Build output and logs ───────────────────────────────────────────────
+# This project is static and has no build step; these are here so stray
+# tooling output never lands in a commit.
+node_modules/
+dist/
+build/
+.cache/
+*.log
+npm-debug.log*
+yarn-error.log*
+
+# ─── Reports, status updates and reviews ─────────────────────────────────
+# Timestamped assistant output (e.g. report-20260914-142215.md). Same rule as
+# the planning files above: use `git add -f` if you ever want one tracked.
+report-*.md
+*-report-*.md
+*.report.md
+status-*.md
+*-status-*.md
+review-*.md
+*-review-*.md
+findings-*.md
+summary-*.md
+
+# ─── Path Patrol specific ────────────────────────────────────────────────
+# Note: the macOS "Icon\r" entry above is written as Icon[[:cntrl:]] on purpose.
+# The looser "Icon?" also matches a folder named icons/ when git runs with
+# core.ignorecase=true (the macOS default), which silently drops the PWA icons.
+
+# Python test tooling (Playwright lives in .venv) and its output.
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+test-results/
+playwright-report/
+
+# Research notes and downloaded reference material (global rule 7).
+# Ask before tracking: vendored third-party material may carry licence terms.
+research/
