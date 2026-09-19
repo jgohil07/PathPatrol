@@ -216,7 +216,7 @@ export class Renderer {
     const { ctx, theme } = this;
     const sprite = this.sprites[theme];
     const ready = sprite.complete && sprite.naturalWidth > 0;
-    const glow = 0.14 * this.view.fit.k;                     // shadowBlur is in device px, not units
+    const k = this.view.fit.k;                               // device px per unit: canvas shadows are in device px
     for (const p of this.game.level.patrols) {
       ctx.fillStyle = theme === 'flight' ? '#bef7e7' : '#ffca6c';
       for (let k = 0; k < p.trailLen; k++) {                 // newest first
@@ -227,9 +227,13 @@ export class Renderer {
       ctx.globalAlpha = 1;
       ctx.save();
       ctx.translate(p.px + (p.x - p.px) * alpha, p.py + (p.y - p.py) * alpha);
-      ctx.rotate(Math.atan2(p.vy, p.vx));
-      ctx.shadowColor = theme === 'flight' ? '#ff9271' : '#9aefff';
-      ctx.shadowBlur = glow;
+      ctx.rotate(p.heading);                                 // eased, so a bounce turns the sprite instead of snapping it
+      // A soft shadow offset towards the bottom right (light from the top left, whatever the board's
+      // rotation): far below a plane, tight against a car.
+      ctx.shadowColor = 'rgba(2,12,22,0.34)';
+      ctx.shadowBlur = (theme === 'flight' ? 0.7 : 0.35) * k;
+      ctx.shadowOffsetX = (theme === 'flight' ? 0.95 : 0.3) * k;
+      ctx.shadowOffsetY = (theme === 'flight' ? 1.35 : 0.4) * k;
       if (ready) {
         ctx.drawImage(sprite, -2.25, -1.68, 4.5, 3.36);
       } else {                                               // until the sprite has loaded

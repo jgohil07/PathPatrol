@@ -7,7 +7,7 @@
 import { START_LIVES, LEVEL_CLEAR_DELAY, RESUME_COUNTDOWN, CELLS_PER_UNIT, levelInfo } from './config.js';
 import { Grid, FIELD, WALL, ROUTE, toCell } from './grid.js';
 import { buildLevel } from './level.js';
-import { stepPatrol } from './physics.js';
+import { advance, settle } from './physics.js';
 import { RouteEngine } from './route.js';
 import { randomSeed } from './rng.js';
 
@@ -197,6 +197,7 @@ export class Game extends Emitter {
     }
     const before = grid.countField();
     grid.claimUnreachable(this._patrolSeeds());
+    settle(level.patrols, grid);                 // a patrol brushing the new wall is moved clear of it
     const after = grid.countField();
     const previous = level.cleared;
     if (polyline) level.routes.push(polyline);
@@ -253,7 +254,7 @@ export class Game extends Emitter {
         this.flash = Math.max(0, this.flash - dt);
         this.clock.advance(dt);
         if (this.phase === PHASE.PLAYING) {
-          for (const p of this.level.patrols) stepPatrol(p, dt, this.grid);
+          advance(this.level.patrols, dt, this.grid);
           this.route.afterStep();             // a patrol may have flown into the route being drawn
         }
         break;
@@ -262,7 +263,7 @@ export class Game extends Emitter {
         this.clock.advance(dt);              // patrols stay frozen while the win banner shows
         break;
       case PHASE.TITLE:
-        for (const p of this.level.patrols) stepPatrol(p, dt, this.grid);
+        advance(this.level.patrols, dt, this.grid);
         break;
       default:
     }

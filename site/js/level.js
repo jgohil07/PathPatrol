@@ -3,7 +3,7 @@
    the same level, whatever the player did in earlier levels. */
 import { BOARD_W, BOARD_H, CELLS_PER_UNIT as S, FRAME_UNITS, levelInfo } from './config.js';
 import { BORDER } from './grid.js';
-import { makePatrol } from './physics.js';
+import { makePatrol, awayFromAxes } from './physics.js';
 import { layoutRng } from './rng.js';
 
 const CLEARANCE = 3;       // units of open ground kept around each obstacle
@@ -44,8 +44,9 @@ function placePatrols(grid, rng, info) {
       found = !grid.circleHitsSolid(x, y, 2.2) && patrols.every((p) => Math.hypot(p.x - x, p.y - y) > 8);
     }
     if (!found) continue;
-    const angle = rng.range(0.22, Math.PI * 2 - 0.22);
-    patrols.push(makePatrol(x, y, Math.cos(angle) * info.speed, Math.sin(angle) * info.speed));
+    const angle = rng.range(0, Math.PI * 2);
+    const heading = awayFromAxes(Math.cos(angle), Math.sin(angle));           // the same 12 degree rule as at a bounce
+    patrols.push(makePatrol(x, y, heading.x * info.speed, heading.y * info.speed));
   }
   return patrols;
 }

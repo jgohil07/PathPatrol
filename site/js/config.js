@@ -12,6 +12,8 @@ export const GRID_H = BOARD_H * CELLS_PER_UNIT;
 export const FRAME_UNITS = 2;                  // thickness of the outer frame
 
 export const PATROL_RADIUS = 1.35;
+export const MIN_BOUNCE_ANGLE = (12 * Math.PI) / 180;   // a bounce turns a direction at least this far from a screen axis
+export const HEADING_TAU = 0.07;                         // seconds for a drawn sprite to catch up with a change of direction
 
 export const STEP = 1 / 120;                   // fixed physics timestep, in seconds
 export const MAX_STEPS_PER_FRAME = 8;          // beyond this a slow frame drops time instead of spiralling

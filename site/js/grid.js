@@ -10,8 +10,10 @@ export const ROUTE = 3;     // a route that is still being drawn; patrols that t
 /* World units to a cell coordinate. */
 export const toCell = (unit) => Math.floor(unit * CELLS_PER_UNIT);
 
-const SOLID_MASK = (1 << WALL) | (1 << BORDER);
-const ROUTE_MASK = 1 << ROUTE;
+/* Bit sets over the cell kinds, for circleTouches and the physics: walls and the frame are solid; a route
+   is not, unless the shield power-up makes it so. */
+export const SOLID_MASK = (1 << WALL) | (1 << BORDER);
+export const ROUTE_MASK = 1 << ROUTE;
 
 /* Squared distance from the point (x, y), in world units, to the rectangle of cell (cx, cy). */
 export function cellDistanceSq(cx, cy, x, y) {
@@ -48,6 +50,8 @@ export class Grid {
     this.cells = new Uint8Array(w * h);
     this._queue = new Int32Array(w * h);     // scratch space, reused by every flood fill
     this._seen = new Uint8Array(w * h);
+    this._mark = new Uint32Array(w * h);     // visit stamps for the physics' connected-region walk: no clearing needed
+    this._markId = 0;
   }
 
   index(x, y) { return y * this.w + x; }
