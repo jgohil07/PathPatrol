@@ -1,0 +1,6 @@
+# Test tooling for Path Patrol. Playwright pins the browser builds too.
+# Install into a git-ignored venv:  python3 -m venv .venv && .venv/bin/pip install -r tests/requirements.txt
+# Then fetch WebKit:                .venv/bin/python -m playwright install webkit
+# (The Chrome channel uses the Google Chrome already installed on the machine; CI uses `playwright install chromium`.)
+playwright==1.63.0
+pytest==9.1.1
