@@ -11,9 +11,10 @@ import pathlib
 import re
 import sys
 import threading
+import time
 
 import pytest
-from playwright.sync_api import TimeoutError as PlaywrightTimeout, sync_playwright
+from playwright.sync_api import Error as PlaywrightError, Locator, Page, TimeoutError as PlaywrightTimeout, sync_playwright
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'tools'))
@@ -32,9 +33,51 @@ TUTORIAL_DONE = """(() => { try {
 } catch (error) { /* storage blocked: the page will play the tutorial, and the test has other things to say */ } })();"""
 
 ENGINES = [e for e in os.environ.get('PP_ENGINES', 'chromium,webkit').split(',') if e]
+def _wait_for_function(self, expression, arg=None, *, timeout=None, polling=None):
+    """Page.wait_for_function evaluates its expression with `new Function` inside the page, and the page's Content-Security-Policy (which
+    has no 'unsafe-eval', on purpose) refuses that. page.evaluate goes through the browser's own protocol, which the policy does not
+    govern, so this waits by asking it: same meaning (truthy), same 30 s default, the same TimeoutError, and a page that is in the middle
+    of a navigation is asked again. Every test keeps running under the real policy this way."""
+    if arg is not None:
+        raise TypeError('these tests wait for an expression, without an argument')
+    limit = 30_000 if timeout is None else timeout
+    end = time.monotonic() + (limit / 1000 if limit else float('inf'))
+    while True:
+        try:
+            if self.evaluate(f'!!({expression})'):
+                return None
+        except PlaywrightError as error:
+            if not re.search(r'Execution context was destroyed|Cannot find context|navigat', str(error)):
+                raise
+        if time.monotonic() >= end:
+            raise PlaywrightTimeout(f'Page.wait_for_function: Timeout {limit}ms exceeded.')
+        time.sleep(0.01)
+
+
+Page.wait_for_function = _wait_for_function
+
+
+def _quiet_screenshot(original, page_of):
+    """WebKit's screenshot adds a stylesheet to the page (whatever the options), which the page's policy (style-src 'self') refuses, and
+    WebKit reports each refusal as a console error. Noted here so that exactly those refusals, while a screenshot is being taken, are
+    not counted (the same refusal at any other moment is a real violation and is)."""
+    def screenshot(self, **options):
+        page = page_of(self)
+        page.__dict__['_screenshot_until'] = time.monotonic() + 5
+        try:
+            return original(self, **options)
+        finally:
+            page.__dict__['_screenshot_until'] = time.monotonic() + 0.5          # (the report may still be on its way)
+    return screenshot
+
+
+Page.screenshot = _quiet_screenshot(Page.screenshot, lambda page: page)
+Locator.screenshot = _quiet_screenshot(Locator.screenshot, lambda locator: locator.page)
+
 # Chrome says this a few seconds after the load of a document that was replaced (by a reload) before it had claimed its font preloads. Nothing
 # is wrong: a document that stays is never told it (test_design asserts that on a cold load, and that each font is fetched once).
 BENIGN_WARNING = re.compile(r'was preloaded using link preload but not used within a few seconds')
+SCREENSHOT_INJECTION = re.compile(r"Refused to apply a stylesheet because its hash, its nonce, or 'unsafe-inline' does not appear")
 
 
 @pytest.fixture(scope='session')
@@ -96,7 +139,14 @@ def open_page(browser, site_url, playwright_instance):
         page.problems = problems
         page.requests = []                                # every URL the page asked for, for "nothing third-party" checks
         page.on('request', lambda r: page.requests.append(r.url))
-        page.on('console', lambda m: problems.append(f'console.{m.type}: {m.text}') if m.type in ('error', 'warning') and not BENIGN_WARNING.search(m.text) else None)
+        def on_console(message):
+            if message.type not in ('error', 'warning') or BENIGN_WARNING.search(message.text):
+                return
+            if SCREENSHOT_INJECTION.search(message.text) and time.monotonic() < page.__dict__.get('_screenshot_until', 0):
+                return
+            problems.append(f'console.{message.type}: {message.text}')
+
+        page.on('console', on_console)
         page.on('pageerror', lambda e: problems.append(f'pageerror: {e}'))
         page.on('requestfailed', lambda r: problems.append(f'requestfailed: {r.url}'))
         page.on('response', lambda r: problems.append(f'http {r.status}: {r.url}') if r.status >= 400 else None)
@@ -116,13 +166,12 @@ def open_page(browser, site_url, playwright_instance):
         return page
 
     yield _open
-    for _, page in opened:
-        # A problem reported in the last moments of a test (an error in a handler the test's final click set off) may still be on its
-        # way to us: the events are only delivered when we call into the browser. One more round trip, after a beat, lets it arrive.
-        try:
-            page.evaluate('new Promise((resolve) => setTimeout(resolve, 30))')
-        except Exception:
-            pass                                          # closed, crashed or mid-navigation: nothing more to hear from it
+    # A problem reported in the last moments of a test (an error in a handler the test's final click set off) may still be on its way to
+    # us: the browser's events are only delivered while we are calling into it. So wait a beat in the browser's own event loop. (Not a
+    # round trip through the page: that would hang for ever on a page with scripts off, or one stuck in a loop.)
+    alive = next((page for _, page in opened if not page.is_closed()), None)
+    if alive is not None:
+        alive.wait_for_timeout(50)
     leftovers = [problem for _, page in opened for problem in page.problems]
     for context, _ in opened:
         context.close()

@@ -219,7 +219,6 @@ def test_a_long_route_is_drawn_without_slowing_the_page(open_page):
 def test_drawing_works_on_the_rotated_board(open_page):
     """A stage taller than wide turns the board 90 degrees; the pointer must still land where it looks."""
     page = open_page(viewport={'width': 412, 'height': 1100})
-    page.add_style_tag(content='.board-frame { aspect-ratio: 3 / 5 !important; }')
     page.wait_for_function('__pp.state().fit.rotated === true')
     start(page)
     top, bottom = client(page, 40, 1), client(page, 40, 71)

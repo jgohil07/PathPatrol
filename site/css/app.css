@@ -68,6 +68,11 @@ body {
 button { font: inherit; color: inherit; }
 h1, h2, h3, p, dl, dd, ol { margin: 0; }
 .sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
+.noscript { margin: 0; padding: 24px 16px; color: var(--ink); font-size: 14px; text-align: center; }
+@media (scripting: none) {                                   /* nothing in the game can work: the dead controls stay out of the way of the one sentence that matters */
+  body > .app { display: none; }
+  .noscript { display: grid; place-items: center; min-height: 100dvh; box-sizing: border-box; }
+}
 .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 
 /* Touch-first presentation by default; a fine pointer (or a mouse actually in use) gets the desktop one. */
