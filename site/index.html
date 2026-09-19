@@ -35,7 +35,7 @@
           <div class="status-row"><span>Lives</span><div class="lives" id="lives" role="img" aria-label="3 lives"></div></div>
           <div class="status-row"><span>Target</span><strong id="targetLabel">65%</strong></div>
           <div class="divider"></div>
-          <p class="tiny-copy">Cut a line through the colour. If a runner reaches it before the cut closes, you lose a life.</p>
+          <p class="tiny-copy">Draw a line from an edge across the colour to another edge. If a patrol touches it before you finish, you lose a life.</p>
         </aside>
 
         <section class="play-section">
@@ -45,7 +45,7 @@
             <div class="runner-count"><span class="runner-dot"></span><span id="runnerLabel">1 RUNNER</span></div>
           </div>
           <div class="board-frame" id="boardFrame">
-            <canvas id="gameCanvas" aria-label="Game field. Drag across a coloured area to create a runway or road."></canvas>
+            <canvas id="gameCanvas" aria-label="Game field. Draw a line from an edge across the coloured area to another edge."></canvas>
             <div class="board-sheen" aria-hidden="true"></div>
             <div class="toast" id="toast" role="status" aria-live="polite"></div>
             <div class="pause-overlay hidden" id="pauseOverlay">
@@ -71,9 +71,9 @@
               <div class="start-symbol" aria-hidden="true"><span></span><span></span></div>
               <span class="eyebrow">A feature-phone classic, remade</span>
               <h1>Claim the quiet<br />side of the board.</h1>
-              <p>Drag a line across the field. It grows into a runway — keep the moving patrols away until it closes.</p>
+              <p>Start on an edge and draw a line across the field to another edge. The side without patrols is yours.</p>
               <button type="button" class="primary-button" id="startButton">Start run <span>→</span></button>
-              <small>Drag to aim your route · release to build</small>
+              <small>Draw edge to edge · lift early to cancel</small>
             </div>
           </div>
           <div class="controls-row">

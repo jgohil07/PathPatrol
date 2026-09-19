@@ -1,7 +1,8 @@
 /* Test hooks, loaded only when the URL has ?debug=1. They expose the game's internals as window.__pp so
    automated tests can put the game into a known state and read it back. Nothing here ships in normal play. */
 import { STEP } from './config.js';
-import { FIELD, toCell } from './grid.js';
+import { FIELD, ROUTE, toCell } from './grid.js';
+import { boardToFraction } from './view.js';
 import { makePatrol } from './physics.js';
 
 export function install({ game, view, renderer, ui, storage, loop }) {
@@ -32,6 +33,20 @@ export function install({ game, view, renderer, ui, storage, loop }) {
     },
 
     cell: (x, y) => game.grid.get(x, y),
+
+    /* The route engine's state, and how many ROUTE cells the grid really holds (they must agree). */
+    route() {
+      const r = game.route;
+      return { mode: r.mode, down: r.down, cells: r.cells.length, points: r.points.length / 2, gridRouteCells: game.grid.count(ROUTE),
+               anchor: { ...r.anchor }, tip: { ...r.tip }, polylines: game.level ? game.level.routes.length : 0 };
+    },
+
+    /* Board units -> viewport pixels, whatever the rotation: where a test should press to hit that spot. */
+    toClient(x, y) {
+      const f = boardToFraction(view.fit.rotated, x, y);
+      const r = view.canvas.getBoundingClientRect();
+      return { x: r.left + f.u * r.width, y: r.top + f.v * r.height };
+    },
 
     /* Hold the simulation still (the loop keeps drawing) and advance it by hand. */
     freeze(on = true) { loop.frozen = on; },

@@ -16,6 +16,7 @@ export class UI {
     this._resetTimer = 0;
     this._resetArmed = false;
     this._livesKey = '';
+    this._lastHint = -Infinity;
     this.el = {
       start: $('startButton'), again: $('againButton'), reload: $('reloadButton'),
       pause: $('pauseButton'), resume: $('resumeButton'), restart: $('restartButton'),
@@ -54,6 +55,7 @@ export class UI {
     game.on('countdown', () => this.renderPhase());
     game.on('over', (report) => this.renderOver(report));
     game.on('crash', ({ error }) => this.renderCrash(error));
+    game.on('route', (event) => { if (event.type === 'edge-hint') this.hintEdge(); });
   }
 
   /* --- actions shared by buttons and keys ---------------------------------------------------- */
@@ -94,6 +96,13 @@ export class UI {
     clearTimeout(this._resetTimer);
     this._resetArmed = false;
     this.el.reset.textContent = 'Reset local records';
+  }
+
+  /* A touch that starts in the middle of the field draws nothing; say why, but not on every attempt. */
+  hintEdge() {
+    if (performance.now() - this._lastHint < 4000) return;
+    this._lastHint = performance.now();
+    this.toast('Start on an edge or on claimed ground', 1600);
   }
 
   toast(text, ms = 1200) {

@@ -1,11 +1,78 @@
-/* Input. For now: keyboard commands. The pointer pipeline and drawing keys arrive with the route engine.
+/* Input: the pointer pipeline that drives the route engine, and the keyboard commands.
+
+   Pointer rules, each one there because the prototype got it wrong on a phone:
+   - one pointer owns the route; every other finger is ignored (the prototype let a second finger
+     take over the aim)
+   - the pointer is captured, so a drag that wanders off the canvas still finishes
+   - coalesced events are used when the browser provides them, so a fast swipe keeps its shape
+   - every way a pointer can disappear (up, cancel, lost capture, pause, a new level) ends the route
+   - the view is frozen while a pointer is down, so a resize cannot make the route jump
 
    Shortcuts ignore any chord with Cmd, Ctrl or Alt (the prototype paused on Cmd+P and switched theme
    on Ctrl+F), and anything typed into a form control. */
 import { PHASE } from './game.js';
 
+const SNAP_FINE_PX = 10;        // a mouse or pen may start this far (CSS px) from safe ground and be pulled onto it
+const SNAP_COARSE_PX = 22;      // a finger is less precise
+
 const FORM_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT']);
 const RESTART_WINDOW_MS = 1500;
+
+export function installPointer({ canvas, view, game }) {
+  const route = game.route;
+  let active = null;                                       // { id } while a pointer owns the route
+
+  const release = () => {
+    if (!active) return;
+    const { id } = active;
+    active = null;
+    try { canvas.releasePointerCapture(id); } catch { /* already released */ }
+    view.thaw();
+  };
+  const at = (event) => view.toBoard(event.clientX, event.clientY);
+
+  canvas.addEventListener('pointerdown', (event) => {
+    if (active || !event.isPrimary) return;                // a second finger never takes over
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    if (!game.isPlaying()) return;
+    event.preventDefault();
+    active = { id: event.pointerId };
+    try { canvas.setPointerCapture(event.pointerId); } catch { /* a synthetic event has no live pointer to capture */ }
+    view.freeze();
+    route.coarse = event.pointerType === 'touch';
+    const p = at(event);
+    route.begin(p.x, p.y, (route.coarse ? SNAP_COARSE_PX : SNAP_FINE_PX) / view.fit.scale);
+  });
+
+  canvas.addEventListener('pointermove', (event) => {
+    if (!active || event.pointerId !== active.id) return;
+    const batch = typeof event.getCoalescedEvents === 'function' ? event.getCoalescedEvents() : [];
+    for (const e of batch.length ? batch : [event]) {
+      const p = at(e);
+      route.move(p.x, p.y);
+    }
+  });
+
+  canvas.addEventListener('pointerup', (event) => {
+    if (!active || event.pointerId !== active.id) return;
+    const p = at(event);
+    route.move(p.x, p.y);                                  // lifting on safe ground still closes the route
+    route.end('lift');
+    release();
+  });
+
+  const lose = (event) => {
+    if (!active || event.pointerId !== active.id) return;
+    route.end('cancel');
+    release();
+  };
+  canvas.addEventListener('pointercancel', lose);
+  canvas.addEventListener('lostpointercapture', lose);
+
+  canvas.addEventListener('contextmenu', (event) => event.preventDefault());   // a long press must not open a menu
+
+  game.on('phase', () => { if (!game.isPlaying()) release(); });               // pause, win, game over: let go
+}
 
 export function installKeyboard({ game, ui }) {
   let restartArmedAt = -Infinity;                   // not 0: that would count as "pressed at page load"

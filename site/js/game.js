@@ -8,6 +8,7 @@ import { START_LIVES, LEVEL_CLEAR_DELAY, RESUME_COUNTDOWN, CELLS_PER_UNIT, level
 import { Grid, FIELD, WALL, ROUTE, toCell } from './grid.js';
 import { buildLevel } from './level.js';
 import { stepPatrol } from './physics.js';
+import { RouteEngine } from './route.js';
 import { randomSeed } from './rng.js';
 
 export const PHASE = Object.freeze({
@@ -74,9 +75,11 @@ export class Game extends Emitter {
     this.run = null;           // { seed, mode, lives }
     this.flash = 0;            // seconds left of the red "life lost" flash
     this.report = null;        // summary of the run that just ended
+    this.route = new RouteEngine(this);
   }
 
   toast(text, ms = 1200) { this.emit('toast', { text, ms }); }
+  isPlaying() { return this.phase === PHASE.PLAYING; }
 
   _setPhase(next) {
     const prev = this.phase;
@@ -183,8 +186,9 @@ export class Game extends Emitter {
   /* --- captures --------------------------------------------------------------------------- */
 
   /* Called by the route engine when a route is closed. The route's cells become wall and every open
-     area with no patrol in it is claimed. `routeCells` are grid indices. */
-  commitCapture(routeCells) {
+     area with no patrol in it is claimed. `routeCells` are grid indices; `polyline` (flat x, y, ...) is
+     kept so the finished route can be drawn as a runway or road. */
+  commitCapture(routeCells, { polyline } = {}) {
     if (this.phase !== PHASE.PLAYING) return null;
     const { grid, level } = this;
     for (const i of routeCells) {
@@ -195,6 +199,7 @@ export class Game extends Emitter {
     grid.claimUnreachable(this._patrolSeeds());
     const after = grid.countField();
     const previous = level.cleared;
+    if (polyline) level.routes.push(polyline);
     level.cleared = ((level.initialPlayable - after) / level.initialPlayable) * 100;
     const result = { percent: level.cleared, gained: level.cleared - previous, cellsClaimed: before - after };
     this.storage.updateRecords((r) => { r.bestClear = Math.max(r.bestClear, level.cleared); });
@@ -247,7 +252,10 @@ export class Game extends Emitter {
       case PHASE.PLAYING:
         this.flash = Math.max(0, this.flash - dt);
         this.clock.advance(dt);
-        if (this.phase === PHASE.PLAYING) for (const p of this.level.patrols) stepPatrol(p, dt, this.grid);
+        if (this.phase === PHASE.PLAYING) {
+          for (const p of this.level.patrols) stepPatrol(p, dt, this.grid);
+          this.route.afterStep();             // a patrol may have flown into the route being drawn
+        }
         break;
       case PHASE.CLEAR:
         this.flash = Math.max(0, this.flash - dt);

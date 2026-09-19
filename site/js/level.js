@@ -18,7 +18,7 @@ export function buildLevel(number, seed, grid) {
   const obstacles = placeObstacles(grid, rng, info.obstacles);
   const initialPlayable = grid.countField();
   const patrols = placePatrols(grid, rng, info);
-  return { number, info, obstacles, initialPlayable, patrols, cleared: 0 };
+  return { number, info, obstacles, initialPlayable, patrols, cleared: 0, routes: [] };
 }
 
 function placeObstacles(grid, rng, quantity) {

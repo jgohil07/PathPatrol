@@ -5,7 +5,7 @@ import { Game, PHASE } from './game.js';
 import { View } from './view.js';
 import { Renderer } from './render.js';
 import { UI } from './ui.js';
-import { installKeyboard } from './input.js';
+import { installKeyboard, installPointer } from './input.js';
 
 const debug = new URLSearchParams(location.search).has('debug');
 
@@ -63,6 +63,7 @@ function boot() {
   view.onChange = () => renderer.resize();
   const ui = new UI({ game, storage, renderer, debug });
   installKeyboard({ game, ui });
+  installPointer({ canvas, view, game });
   installAutoPause(game);
   const loop = startLoop({ game, renderer });
   game.enterTitle();

@@ -24,6 +24,11 @@ export const paletteFor = (theme, level) => {
   return list[(level - 1) % list.length];
 };
 
+/* Radius of the ring around the pointer, in CSS px. A fingertip covers roughly 10-16 mm, which is 60-100
+   CSS px across on a phone, so the finger ring has to be large to stay visible around it. Tune on a
+   real device; the mouse ring only needs to be findable. */
+const TIP_RING_PX = { coarse: 34, fine: 13 };
+
 const INK = [11, 20, 34];                 // #0b1422: claimed ground and the frame
 const GLOW = [114, 244, 209, 56];         // the faint aqua rim on open ground next to a wall
 
@@ -69,6 +74,7 @@ export class Renderer {
     ctx.drawImage(this.layer, 0, 0);
     ctx.save();
     view.applyTransform(ctx);
+    this._drawLiveRoute();
     this._drawPatrols(alpha);
     if (game.flash > 0) {
       ctx.fillStyle = `rgba(255,92,77,${game.flash * 0.5})`;
@@ -105,6 +111,7 @@ export class Renderer {
     ctx.imageSmoothingEnabled = false;                       // crisp cells: the pixel look is deliberate
     ctx.drawImage(this.territory, 0, 0, BOARD_W, BOARD_H);
     ctx.imageSmoothingEnabled = true;
+    for (const points of game.level.routes) this._strokeRoute(ctx, points, null, false);
     for (const obstacle of game.level.obstacles) {
       if (this.theme === 'flight') drawMountain(ctx, obstacle); else drawCityBlock(ctx, obstacle);
     }
@@ -148,6 +155,57 @@ export class Renderer {
       ctx.lineWidth = 0.12;
       for (let x = 8; x < BOARD_W; x += 12) { ctx.beginPath(); ctx.moveTo(x, 2); ctx.lineTo(x, BOARD_H - 2); ctx.stroke(); }
       for (let y = 8; y < BOARD_H; y += 12) { ctx.beginPath(); ctx.moveTo(2, y); ctx.lineTo(BOARD_W - 2, y); ctx.stroke(); }
+    }
+    ctx.restore();
+  }
+
+  /* --- routes ------------------------------------------------------------------------------ */
+
+  /* A route as a runway (Flight) or a road (Drive): a dark bed, a lighter surface and a dashed centre
+     line. `points` is a flat [x, y, ...] polyline; `tip` an optional final point [x, y]. `live` animates
+     the dashes. The polyline is drawn exactly, not smoothed: the wall is made of the cells along these
+     same segments, and a smoothed road would cut corners the wall does not. */
+  _strokeRoute(ctx, points, tip, live) {
+    const n = points.length / 2;
+    if (n === 0 || (n === 1 && !tip)) return;
+    ctx.beginPath();
+    ctx.moveTo(points[0], points[1]);
+    for (let i = 1; i < n; i++) ctx.lineTo(points[i * 2], points[i * 2 + 1]);
+    if (tip) ctx.lineTo(tip[0], tip[1]);
+    const flight = this.theme === 'flight';
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = 1.55; ctx.strokeStyle = flight ? '#2b3a46' : '#27303a'; ctx.stroke();
+    ctx.lineWidth = 1.02; ctx.strokeStyle = flight ? '#687c82' : '#4d5962'; ctx.stroke();
+    ctx.setLineDash([1.25, 1.1]);
+    ctx.lineDashOffset = live ? -performance.now() / 55 : 0;
+    ctx.lineWidth = 0.15; ctx.strokeStyle = flight ? '#e9fff7' : '#ffd36e'; ctx.stroke();
+    ctx.restore();
+  }
+
+  /* The route being drawn, and a ring around the pointer that stays visible around a fingertip. */
+  _drawLiveRoute() {
+    const { ctx, game, view } = this;
+    const route = game.route;
+    if (!route.down) return;
+    const drawing = route.mode === 'drawing';
+    if (drawing) this._strokeRoute(ctx, route.points, [route.tip.x, route.tip.y], true);
+    if (!drawing && route.mode !== 'armed') return;
+    const scale = view.fit.scale;                              // CSS px per world unit
+    const flight = this.theme === 'flight';
+    ctx.save();
+    ctx.lineWidth = 2.2 / scale;
+    ctx.strokeStyle = flight ? '#c4fff0' : '#ffe0a1';
+    ctx.fillStyle = ctx.strokeStyle;
+    ctx.globalAlpha = drawing ? 0.95 : 0.5;
+    ctx.beginPath();
+    ctx.arc(route.tip.x, route.tip.y, (route.coarse ? TIP_RING_PX.coarse : TIP_RING_PX.fine) / scale, 0, Math.PI * 2);
+    ctx.stroke();
+    if (drawing) {
+      ctx.beginPath();
+      ctx.arc(route.tip.x, route.tip.y, 3 / scale, 0, Math.PI * 2);
+      ctx.fill();
     }
     ctx.restore();
   }
