@@ -59,6 +59,9 @@ export function install({ game, view, renderer, ui, storage, loop, sound, haptic
       game.emit('hud');
     },
 
+    /* Replace the tracers with these ({ x, y, dir }), each snapped to the nearest edge of the boundary. */
+    setTracers(list) { game.tracers.place(list); },
+
     /* Claim everything on one side of a full-width straight cut: axis 'h' at y, or 'v' at x (world units). */
     cutLine(axis, at) {
       const cells = [];

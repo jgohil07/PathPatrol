@@ -207,12 +207,15 @@ export class RouteEngine {
     return !this.game.isPlaying();                            // the capture may have won the level
   }
 
-  _hit() {
+  _hit(by = 'patrol') {
     this._erase('hit', true);
     this.mode = MODE.SPENT;
-    this.game.emit('route', { type: 'hit' });
+    this.game.emit('route', { type: 'hit', by });
     this.game.loseLife();
   }
+
+  /* An edge tracer caught the tip of the route being drawn. */
+  hitByTracer() { if (this.mode === MODE.DRAWING) this._hit('tracer'); }
 
   _erase(reason, quiet = false) {
     const { grid } = this.game;

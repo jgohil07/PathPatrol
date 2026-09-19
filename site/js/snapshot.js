@@ -7,7 +7,7 @@
 
    Everything read back is untrusted (localStorage can hold anything), so validateSnapshot rebuilds a clean
    object field by field and returns null for the smallest doubt. A run that cannot be trusted is dropped. */
-import { GRID_W, GRID_H, BOARD_W, BOARD_H, APP_VERSION, MAX_LIVES, SCORE } from './config.js';
+import { GRID_W, GRID_H, BOARD_W, BOARD_H, APP_VERSION, MAX_LIVES, SCORE, levelInfo } from './config.js';
 import { FIELD, WALL, BORDER, ROUTE } from './grid.js';
 
 export const SNAPSHOT_VERSION = 1;
@@ -78,6 +78,7 @@ export function takeSnapshot(game, now = Date.now()) {
     scoreAtStart: level.scoreAtStart, statsAtStart: { ...level.statsAtStart }, clock: game.clock.now,
     grid: encodeGrid(game.grid.cells),
     patrols: level.patrols.map((p) => [p.x, p.y, p.vx, p.vy, p.heading]),
+    tracers: game.tracers.toJSON(),
     routes: level.routes.map((r) => Array.from(r)),
   };
 }
@@ -125,6 +126,14 @@ export function validateSnapshot(raw, { now = Date.now(), today = null } = {}) {
     if (!isCoordinate(p[0], BOARD_W) || !isCoordinate(p[1], BOARD_H)) return null;
     patrols.push(p.slice());
   }
+  // Tracers: exactly as many as this level has, each [loop number, position along the loop, direction].
+  if (!Array.isArray(raw.tracers) || raw.tracers.length !== levelInfo(raw.level).tracers) return null;
+  const tracers = [];
+  for (const t of raw.tracers) {
+    if (!Array.isArray(t) || t.length !== 3 || !t.every(Number.isFinite) || (t[2] !== 1 && t[2] !== -1)) return null;
+    if (!Number.isInteger(t[0]) || t[0] < 0 || t[0] > 10000 || t[1] < 0 || t[1] > 1e6) return null;
+    tracers.push(t.slice());
+  }
   if (raw.routes.length > MAX_ROUTES) return null;
   const routes = [];
   for (const route of raw.routes) {
@@ -132,5 +141,5 @@ export function validateSnapshot(raw, { now = Date.now(), today = null } = {}) {
     routes.push(route.slice());
   }
   if (raw.grid.length > GRID_W * GRID_H * 2) return null;
-  return { ...out, scoreAtStart: raw.scoreAtStart, statsAtStart: startStats, clock: raw.clock, grid: raw.grid.slice(), patrols, routes };
+  return { ...out, scoreAtStart: raw.scoreAtStart, statsAtStart: startStats, clock: raw.clock, grid: raw.grid.slice(), patrols, tracers, routes };
 }

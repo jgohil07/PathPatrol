@@ -48,6 +48,7 @@ export class Fx {
 
     game.on('capture', (result) => this._onCapture(result));
     game.on('route', (event) => this._onRoute(event));
+    game.on('tracer', (event) => { if (event.type === 'chase') this.ring(event.x, event.y, 'amber', { from: 1.5, to: 7, ms: 520 }); });
     game.on('extraLife', () => this.popup('+1 LIFE', BOARD_CENTRE.x, 14, 'amber'));
     game.on('clear', (tally) => this._onClear(tally));
     game.on('level', () => this.clear());

@@ -10,6 +10,7 @@ import { buildLevel } from './level.js';
 import { advance, settle, makePatrol } from './physics.js';
 import { RouteEngine } from './route.js';
 import { Tutorial } from './tutorial.js';
+import { Tracers } from './tracers.js';
 import { randomSeed, dayKey } from './rng.js';
 import { takeSnapshot, validateSnapshot, decodeGrid } from './snapshot.js';
 
@@ -86,6 +87,7 @@ export class Game extends Emitter {
     this._clearAt = 0;         // game-clock time the win screen appeared
     this.route = new RouteEngine(this);
     this.tutorial = new Tutorial(this);
+    this.tracers = new Tracers(this);
     this.on('route', (event) => this._onRoute(event));
   }
 
@@ -100,6 +102,7 @@ export class Game extends Emitter {
 
   _build(number, seed) {
     this.level = buildLevel(number, seed, this.grid);
+    this.tracers.reset(this.level, seed);
     this.clock.reset();
     this.flash = 0;
     this.emit('level', this.level);
@@ -162,6 +165,7 @@ export class Game extends Emitter {
         level.patrols.push(patrol);
       }
       settle(level.patrols, grid);
+      if (!this.tracers.restore(snap.tracers)) this.tracers.reset(level, snap.seed);      // they no longer fit the board: start them afresh
       level.routes = snap.routes;
       level.cleared = ((level.initialPlayable - grid.countField()) / level.initialPlayable) * 100;
       level.scoreAtStart = snap.scoreAtStart;
@@ -401,6 +405,7 @@ export class Game extends Emitter {
     const before = grid.countField();
     grid.claimUnreachable(this._patrolSeeds());
     settle(level.patrols, grid);                 // a patrol brushing the new wall is moved clear of it
+    this.tracers.refresh();                      // the boundary moved: trace it again and put each tracer back on it
     const after = grid.countField();
     const previous = level.cleared;
     if (polyline) level.routes.push(polyline);
@@ -494,6 +499,7 @@ export class Game extends Emitter {
         if (this.phase === PHASE.PLAYING) {
           advance(this.level.patrols, dt, this.grid);
           this.route.afterStep();             // a patrol may have flown into the route being drawn
+          this.tracers.update(dt);            // tracers crawl the boundary, and may chase the route
           this.tutorial.update();
         }
         break;
@@ -503,6 +509,7 @@ export class Game extends Emitter {
         break;
       case PHASE.TITLE:
         advance(this.level.patrols, dt, this.grid);
+        this.tracers.update(dt);
         break;
       default:
     }

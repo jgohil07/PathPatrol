@@ -134,8 +134,8 @@ def test_d5_win_banner_survives_pause_and_cannot_be_restarted(open_page):
 
 def test_restart_button_rebuilds_the_same_level(open_page):
     page = open_page()
-    start(page)
-    page.evaluate('__pp.freeze(true)')
+    page.evaluate('__pp.freeze(true)')                       # frozen before Start is pressed: not one physics step can slip in
+    start(page)                                              # between starting and reading the patrols, which would make the comparison below fail
     first = state(page)['patrols']
     page.evaluate('__pp.step(60)')
     assert state(page)['patrols'] != first

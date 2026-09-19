@@ -94,6 +94,7 @@ export class Renderer {
     this._drawLiveRoute();
     this._drawGhost();
     this._drawPatrols(alpha);
+    this._drawTracers(alpha, now);
     if (fx) fx.drawBoard(ctx, now, view.fit.scale);
     // The red tint for a lost life. With reduced motion it is a faint steady tint, not a flash.
     this.flashAlpha = game.flash > 0 ? Math.min(game.flash * 0.5, this.reducedMotion ? 0.12 : 0.5) : 0;
@@ -273,6 +274,33 @@ export class Renderer {
     ctx.fillStyle = `rgba(${colour},0.95)`;
     ctx.fill();
     ctx.restore();
+  }
+
+  /* Edge tracers: a pulsing amber diamond with a short fading trail; coral and quicker while chasing a route. */
+  _drawTracers(alpha, now) {
+    const { ctx, game } = this;
+    this.tracersDrawn = game.tracers.list.length;
+    for (const tracer of game.tracers.list) {
+      const chasing = tracer.mode === 'chase';
+      const colour = chasing ? '#ff765f' : '#ffb36a';
+      ctx.fillStyle = colour;
+      for (let k = 0; k < tracer.trailLen; k++) {                         // newest first
+        const j = (tracer.trailHead - 1 - k + tracer.trail.length / 2) % (tracer.trail.length / 2);
+        ctx.globalAlpha = ((tracer.trailLen - k) / tracer.trailLen) * 0.22;
+        ctx.fillRect(tracer.trail[j * 2] - 0.25, tracer.trail[j * 2 + 1] - 0.25, 0.5, 0.5);
+      }
+      ctx.globalAlpha = 1;
+      const pulse = this.reducedMotion ? 1 : 1 + 0.14 * Math.sin(now / (chasing ? 90 : 220));
+      const size = 0.95 * pulse;
+      ctx.save();
+      ctx.translate(tracer.px + (tracer.x - tracer.px) * alpha, tracer.py + (tracer.y - tracer.py) * alpha);
+      ctx.rotate(Math.PI / 4);
+      ctx.fillStyle = 'rgba(4,8,14,0.85)';
+      ctx.fillRect(-size - 0.22, -size - 0.22, 2 * size + 0.44, 2 * size + 0.44);       // a dark outline so it reads on any floor
+      ctx.fillStyle = colour;
+      ctx.fillRect(-size, -size, 2 * size, 2 * size);
+      ctx.restore();
+    }
   }
 
   /* --- per-frame layer -------------------------------------------------------------------- */

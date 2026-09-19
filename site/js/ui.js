@@ -132,6 +132,7 @@ export class UI {
     game.on('route', (event) => { if (event.type === 'edge-hint') this.hintEdge(); });
     game.on('levelStart', ({ lives }) => this.announce(`${lives} ${plural(lives, 'life', 'lives')}`));
     game.on('life', ({ lives }) => this.announce(`${lives} ${plural(lives, 'life', 'lives')} left`));
+    game.on('tracer', (event) => { if (event.type === 'chase') this.toast('A tracer is chasing your route', 1400); });
     game.on('capture', ({ percent, points }) => this.announce(`${percent.toFixed(1)} percent cleared${points ? `, ${number(points)} points` : ''}`));
     game.on('clear', (tally) => this.renderTally(tally));
   }
