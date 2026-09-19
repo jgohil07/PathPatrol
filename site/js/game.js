@@ -5,12 +5,13 @@
    actually running, so pausing freezes it and restarting cancels it. The prototype used setTimeout and
    paid for it: a restarted level could "win itself" and a pause could be overridden. */
 import { START_LIVES, MAX_LIVES, LEVEL_CLEAR_DELAY, CLEAR_SKIP_AFTER, RESUME_COUNTDOWN, CELLS_PER_UNIT, SCORE, TUTORIAL, levelInfo } from './config.js';
-import { Grid, FIELD, WALL, ROUTE, toCell } from './grid.js';
+import { Grid, FIELD, WALL, ROUTE, SOLID_MASK, ROUTE_MASK, toCell } from './grid.js';
 import { buildLevel } from './level.js';
 import { advance, settle, makePatrol } from './physics.js';
 import { RouteEngine } from './route.js';
 import { Tutorial } from './tutorial.js';
 import { Tracers } from './tracers.js';
+import { Powerups } from './powerups.js';
 import { randomSeed, dayKey } from './rng.js';
 import { takeSnapshot, validateSnapshot, decodeGrid } from './snapshot.js';
 
@@ -68,6 +69,9 @@ const pad2 = (n) => String(n).padStart(2, '0');
    break the combo; a pause, a restart or a jitter-sized route are not. */
 const COMBO_BREAKERS = new Set(['lift', 'cancel', 'backspace']);
 
+/* With the shield power-up the route being drawn is solid to patrols, so they bounce off it. */
+const SHIELDED = { mask: SOLID_MASK | ROUTE_MASK };
+
 export class Game extends Emitter {
   constructor({ storage }) {
     super();
@@ -88,6 +92,7 @@ export class Game extends Emitter {
     this.route = new RouteEngine(this);
     this.tutorial = new Tutorial(this);
     this.tracers = new Tracers(this);
+    this.powerups = new Powerups(this);
     this.on('route', (event) => this._onRoute(event));
   }
 
@@ -104,6 +109,7 @@ export class Game extends Emitter {
     this.level = buildLevel(number, seed, this.grid);
     this.tracers.reset(this.level, seed);
     this.clock.reset();
+    this.powerups.reset(this.level, seed);              // after the clock: its first pickup is timed from zero
     this.flash = 0;
     this.emit('level', this.level);
   }
@@ -171,6 +177,7 @@ export class Game extends Emitter {
       level.scoreAtStart = snap.scoreAtStart;
       level.statsAtStart = snap.statsAtStart;
       this.clock.now = snap.clock;
+      this.powerups.restore(level, snap.seed, snap.powerups);
       this._setPhase(PHASE.PLAYING);
     }
     this.pause('restored');
@@ -406,6 +413,7 @@ export class Game extends Emitter {
     grid.claimUnreachable(this._patrolSeeds());
     settle(level.patrols, grid);                 // a patrol brushing the new wall is moved clear of it
     this.tracers.refresh();                      // the boundary moved: trace it again and put each tracer back on it
+    this.powerups.afterCapture();                // ground that swallowed a pickup takes it
     const after = grid.countField();
     const previous = level.cleared;
     if (polyline) level.routes.push(polyline);
@@ -497,9 +505,12 @@ export class Game extends Emitter {
         this.flash = Math.max(0, this.flash - dt);
         this.clock.advance(dt);
         if (this.phase === PHASE.PLAYING) {
-          advance(this.level.patrols, dt, this.grid);
+          this.powerups.update();             // a pickup may appear or expire, an effect may end
+          const scale = this.powerups.scale();
+          if (scale.patrols > 0) advance(this.level.patrols, dt * scale.patrols, this.grid, this.powerups.shielded ? SHIELDED : undefined);
+          else for (const p of this.level.patrols) { p.px = p.x; p.py = p.y; }      // frozen: drawn where they are, not shimmering back
           this.route.afterStep();             // a patrol may have flown into the route being drawn
-          this.tracers.update(dt);            // tracers crawl the boundary, and may chase the route
+          this.tracers.update(dt, scale.tracers);       // tracers crawl the boundary, and may chase the route
           this.tutorial.update();
         }
         break;

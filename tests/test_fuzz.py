@@ -10,9 +10,12 @@ FUZZ = """
   const { FIELD, ROUTE, SOLID_MASK } = await import('/js/grid.js');
   const { STEP, PATROL_RADIUS: R, START_LIVES, MAX_LIVES, SCORE, levelInfo } = await import('/js/config.js');
   const { traceContours } = await import('/js/contour.js');
+  const { POWER } = await import('/js/powerups.js');
+  const { validateSnapshot } = await import('/js/snapshot.js');
   const rngOf = (seed) => { let s = seed >>> 0; return () => (s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296; };
   const out = { games: 0, steps: 0, actions: 0, routesStarted: 0, closed: 0, lifted: 0, hits: 0, captures: 0, restarts: 0, pauses: 0,
-                levelsCleared: 0, gameOvers: 0, shallow: 0, extraLives: 0, skips: 0, combosBroken: 0, tracerChases: 0, tracerCatches: 0, tracerLevels: 0, contourChecks: 0, problems: [] };
+                levelsCleared: 0, gameOvers: 0, shallow: 0, extraLives: 0, skips: 0, combosBroken: 0, tracerChases: 0, tracerCatches: 0, tracerLevels: 0, contourChecks: 0, saves: 0,
+                spawns: 0, expired: 0, freeze: 0, shield: 0, slow: 0, frozenChecks: 0, shieldedChecks: 0, slowChecks: 0, problems: [] };
   const note = (m) => { if (out.problems.length < 6) out.problems.push(m); };
 
   for (const seed of arg.seeds) {
@@ -20,14 +23,24 @@ FUZZ = """
     const game = new Game({ storage: createStorage(memoryBackend()) });
     game.enterTitle(); game.newRun({ seed: 'fuzz-' + seed }); game.startLevel(1 + (seed % 9));
     out.games++;
+    const save = game.persist.bind(game);                             // whatever the game writes, its own check must accept: a save it cannot read back loses the run
+    game.persist = () => { save(); const raw = game.storage.loadSnapshot(); if (raw) { out.saves++; if (validateSnapshot(raw) === null) note(`seed ${seed}: the game wrote a snapshot that its own check rejects`); } };
     const route = game.route; let clearedInLevel = 0, lastLevel = game.level;
     let lastRun = null, granted = 0, lastScore = 0;                  // extra lives granted in this run; the score a level has reached
     game.on('extraLife', () => { granted++; out.extraLives++; });
     game.on('combo', (c) => { if (c.broken) out.combosBroken++; });
+    let frozenFor = null;                                             // patrol and tracer positions while a freeze holds (between captures)
+    game.on('power', (e) => { if (e.type === 'spawn') out.spawns++; else if (e.type === 'expire') out.expired++; else if (e.type === 'start') out[e.kind]++; });
+    if (seed % 2 === 0) {                                             // even seeds: a stress setting, pickups every few seconds instead of every 12-20
+      const hurry = () => { game.powerups.nextAt = Math.min(game.powerups.nextAt, game.clock.now + 2 + rnd() * 3); };
+      game.on('level', hurry);
+      game.on('power', (e) => { if (e.type === 'spawn' || e.type === 'expire' || e.type === 'start') hurry(); });
+      hurry();
+    }
     game.on('tracer', (e) => { if (e.type === 'chase') out.tracerChases++; else if (e.type === 'caught') out.tracerCatches++; });
     game.on('route', (e) => { if (e.type === 'cancel') out.lifted++; else if (e.type === 'hit') out.hits++; else if (e.type === 'start') out.routesStarted++; });
     game.on('capture', (c) => {
-      out.captures++;
+      out.captures++; frozenFor = null;                               // a capture moves the boundary and settles patrols off the new walls: not what a freeze forbids
       // every open cell must be reachable from some patrol: an area with no patrol in it is always claimed
       const g = game.grid, seen = new Uint8Array(g.w * g.h), queue = []; for (const i of game._patrolSeeds()) if (g.cells[i] === FIELD && !seen[i]) { seen[i] = 1; queue.push(i); }
       for (let h = 0; h < queue.length; h++) { const i = queue[h], cx = i % g.w; for (const j of [cx > 0 ? i - 1 : -1, cx < g.w - 1 ? i + 1 : -1, i - g.w, i + g.w]) if (j >= 0 && j < g.cells.length && !seen[j] && g.cells[j] === FIELD) { seen[j] = 1; queue.push(j); } }
@@ -60,6 +73,20 @@ FUZZ = """
         if (run.stats.captures < 0 || run.stats.closeCalls < 0 || run.stats.levelsCleared < 0) note(`seed ${seed} ${where}: negative stats`);
       }
       if (!['playing', 'paused', 'clear', 'over', 'countdown'].includes(game.phase)) note(`seed ${seed} ${where}: phase ${game.phase}`);
+      // power-ups: one pickup at most, on open ground, and no timer longer than its duration
+      const pu = game.powerups, now = game.clock.now;
+      if (pu.pickup && (game.grid.get(Math.floor(pu.pickup.x * 2), Math.floor(pu.pickup.y * 2)) !== FIELD || pu.pickup.expires - now > POWER.lifetime + 1e-9)) note(`seed ${seed} ${where}: a pickup is on ground it cannot be on, or lives too long`);
+      if (pu.pickup && !levelInfo(level.number).powerups) note(`seed ${seed} ${where}: a pickup on level ${level.number}`);
+      for (const kind of POWER.kinds) if (pu.until[kind] !== undefined && pu.until[kind] - now > POWER[kind] + 1e-9) note(`seed ${seed} ${where}: ${kind} has ${pu.until[kind] - now} s left`);
+      // a freeze really stops patrols and tracers (checked step to step while it holds)
+      if (pu.active('freeze') && game.phase === 'playing') {
+        const here = JSON.stringify([level.number, level.patrols.map((p) => [p.x, p.y]), game.tracers.list.map((t) => [t.x, t.y])]);
+        out.frozenChecks++;
+        if (frozenFor !== null && frozenFor.level === level && frozenFor.snapshot !== here) note(`seed ${seed} ${where}: something moved during a freeze`);
+        frozenFor = { level, snapshot: here };
+      } else frozenFor = null;
+      if (pu.shielded) out.shieldedChecks++;
+      if (pu.active('slow')) out.slowChecks++;
       // tracers: as many as the level has, each on a real loop and finite
       if (game.tracers.list.length !== levelInfo(level.number).tracers) note(`seed ${seed} ${where}: ${game.tracers.list.length} tracers on level ${level.number}`);
       for (const t of game.tracers.list) {
@@ -82,7 +109,9 @@ FUZZ = """
     let bot = null;
     const corners = () => { const side = Math.floor(rnd() * 4), t = 4 + rnd() * 60; return side === 0 ? [4 + t * 1.7, 1] : side === 1 ? [4 + t * 1.7, 71] : side === 2 ? [1, t] : [119, t]; };
     const startBot = () => {
-      const [x, y] = corners(); const targets = []; for (let k = 0, n = Math.floor(rnd() * 3); k < n; k++) targets.push([10 + rnd() * 100, 8 + rnd() * 56]); targets.push(corners());
+      const [x, y] = corners(); const targets = []; for (let k = 0, n = Math.floor(rnd() * 3); k < n; k++) targets.push([10 + rnd() * 100, 8 + rnd() * 56]);
+      if (game.powerups.pickup && rnd() < 0.7) targets.unshift([game.powerups.pickup.x, game.powerups.pickup.y]);        // often, go and take a pickup
+      targets.push(corners());
       route.begin(x, y, rnd() < 0.3 ? 2 : 0); bot = { x, y, targets, lifeAt: rnd() < 0.3 ? 4 + Math.floor(rnd() * 25) : 1e9, moves: 0, slow: rnd() < 0.2 };   // some routes are drawn slowly: tracers can catch those
     };
     for (let i = 0; i < 2400; i++) {                                   // 20 seconds of game time
@@ -123,3 +152,6 @@ def test_a_bot_plays_hundreds_of_games_without_breaking_any_invariant(open_page)
     assert got['extraLives'] >= 1 and got['skips'] >= 1                 # and so were extra lives and skipping a win screen
     assert got['contourChecks'] == got['captures'] > 100                # every capture had its boundary checked against a brute-force count
     assert got['tracerLevels'] > 5000 and got['tracerChases'] >= 5 and got['tracerCatches'] >= 1     # tracers were on the board, noticed routes, and caught one
+    assert got['spawns'] >= 20 and got['freeze'] >= 3 and got['shield'] >= 2 and got['slow'] >= 2        # every kind of power-up was taken...
+    assert got['frozenChecks'] > 500 and got['shieldedChecks'] > 200 and got['slowChecks'] > 200          # ...and the invariants were checked while each held
+    assert got['saves'] > 300                                           # and every save the games made was read back by the game's own check

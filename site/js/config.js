@@ -56,5 +56,6 @@ export function levelInfo(level) {
     target: Math.min(70, 65 + Math.floor((l - 1) / 2) * 2),
     obstacles: Math.min(5, Math.floor((l - 1) / 2)),
     tracers: l >= 4 ? Math.min(3, Math.floor((l - 1) / 3)) : 0,
+    powerups: l >= 3,
   };
 }

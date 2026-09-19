@@ -346,3 +346,30 @@ def test_a_vibrate_that_throws_or_is_missing_never_breaks_the_game(open_page):
     new_run(page)
     page.evaluate('__pp.cutLine("v", 40); __pp.game.loseLife()')
     assert page.evaluate('__pp.state().phase') == 'playing'
+
+
+# ---- power-ups -------------------------------------------------------------------------------------------------------
+def test_taking_a_power_up_pings_upward_and_its_running_out_falls_away(open_page):
+    page = start_sound_page(open_page)
+    wake(page)
+    new_run(page)
+    page.evaluate('__pp.game.startLevel(3); __pp.setPatrols([{ x: 110, y: 64 }]); __pp.game.powerups.place("slow", 40, 36); __pp.game.route.begin(40, 1); __audio.reset()')
+    page.evaluate('__pp.game.route.move(40, 40)')                                       # drawn through the pickup
+    took = [(t['type'], t['freq'], t['glide']) for t in tones(page) if not t['hum']]
+    assert took == [('sine', 700, 1250)]                                                # a short rising ping
+    page.evaluate('__audio.reset(); __pp.step(600)')                                    # five seconds on: the slow-down ends
+    ended = [(t['type'], t['freq'], t['glide']) for t in tones(page) if not t['hum']]
+    assert ended == [('triangle', 330, 210)]                                            # the same soft falling blip as a lifted finger
+    page.evaluate('__audio.reset(); __pp.game.powerups.place("freeze", 60, 20); __pp.step(1400)')
+    assert [t for t in tones(page) if not t['hum']] == []                               # a pickup appearing or expiring on its own is silent
+
+
+def test_taking_a_power_up_gives_a_medium_buzz_and_nothing_else_does(open_page):
+    page = open_page(init=[VIBRATE], viewport=DESKTOP)
+    new_run(page)
+    page.evaluate('__pp.game.startLevel(3); __pp.setPatrols([{ x: 110, y: 64 }]); __pp.game.powerups.place("freeze", 40, 36); __pp.game.route.begin(40, 1); __vibes.length = 0')
+    page.evaluate('__pp.game.route.move(40, 40)')
+    assert page.evaluate('__vibes.slice()') == [[12]]
+    page.evaluate('__vibes.length = 0; __pp.step(400)')                                 # it running out is not buzzed
+    assert page.evaluate('__vibes.length') == 0
+

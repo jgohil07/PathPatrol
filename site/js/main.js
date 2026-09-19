@@ -26,11 +26,13 @@ function startLoop({ game, renderer, sound }) {
     frames: 0,
     stats: { fps: 0, avgMs: 0, maxMs: 0 },
     onStats: null,
+    onFrame: null,                     // called every frame before drawing (the HUD's power-up chips)
   };
 
   function work(dt) {
     game.tick(dt);
     sound.update();                                     // the drawing hum follows the route, frame by frame
+    if (loop.onFrame) loop.onFrame();
     if (loop.frozen || !game.isStepping()) {
       acc = 0;
     } else {

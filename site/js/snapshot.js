@@ -8,6 +8,7 @@
    Everything read back is untrusted (localStorage can hold anything), so validateSnapshot rebuilds a clean
    object field by field and returns null for the smallest doubt. A run that cannot be trusted is dropped. */
 import { GRID_W, GRID_H, BOARD_W, BOARD_H, APP_VERSION, MAX_LIVES, SCORE, levelInfo } from './config.js';
+import { POWER } from './powerups.js';
 import { FIELD, WALL, BORDER, ROUTE } from './grid.js';
 
 export const SNAPSHOT_VERSION = 1;
@@ -79,6 +80,7 @@ export function takeSnapshot(game, now = Date.now()) {
     grid: encodeGrid(game.grid.cells),
     patrols: level.patrols.map((p) => [p.x, p.y, p.vx, p.vy, p.heading]),
     tracers: game.tracers.toJSON(),
+    powerups: game.powerups.toJSON(),
     routes: level.routes.map((r) => Array.from(r)),
   };
 }
@@ -88,6 +90,29 @@ export function takeSnapshot(game, now = Date.now()) {
 function cleanStats(s) {
   if (!isObject(s) || !isCount(s.captures) || !isCount(s.closeCalls) || !isCount(s.levelsCleared)) return null;
   return { captures: s.captures, closeCalls: s.closeCalls, levelsCleared: s.levelsCleared };
+}
+
+/* The power-up state: an optional pickup, when the next comes, which kind, timers left and how many random values each
+   stream has given. Every number is bounded by what the game could really have produced. */
+function cleanPowerups(p) {
+  if (!isObject(p)) return null;
+  const kind = (k) => POWER.kinds.includes(k);
+  const within = (v, max) => Number.isFinite(v) && v >= 0 && v <= max;
+  let pickup = null;
+  if (p.pickup !== null) {
+    const q = p.pickup;
+    if (!isObject(q) || !kind(q.kind) || !isCoordinate(q.x, BOARD_W) || !isCoordinate(q.y, BOARD_H) || !within(q.left, POWER.lifetime)) return null;
+    pickup = { kind: q.kind, x: q.x, y: q.y, left: q.left };
+  }
+  if (!(p.nextIn === -1 || within(p.nextIn, POWER.spawn[1] + POWER.retry))) return null;
+  if (p.kind !== null && !kind(p.kind)) return null;
+  if (!isObject(p.active) || !isObject(p.draws) || !within(p.draws.seq, 1e5) || !within(p.draws.pos, 1e6)) return null;
+  const active = {};
+  for (const [k, left] of Object.entries(p.active)) {
+    if (!kind(k) || !within(left, POWER[k])) return null;
+    active[k] = left;
+  }
+  return { pickup, nextIn: p.nextIn, kind: p.kind, active, draws: { seq: Math.floor(p.draws.seq), pos: Math.floor(p.draws.pos) } };
 }
 
 /* A clean copy of `raw`, or null. `today` is the local date key, needed to accept a daily run. */
@@ -134,6 +159,8 @@ export function validateSnapshot(raw, { now = Date.now(), today = null } = {}) {
     if (!Number.isInteger(t[0]) || t[0] < 0 || t[0] > 10000 || t[1] < 0 || t[1] > 1e6) return null;
     tracers.push(t.slice());
   }
+  const powerups = cleanPowerups(raw.powerups);
+  if (!powerups) return null;
   if (raw.routes.length > MAX_ROUTES) return null;
   const routes = [];
   for (const route of raw.routes) {
@@ -141,5 +168,5 @@ export function validateSnapshot(raw, { now = Date.now(), today = null } = {}) {
     routes.push(route.slice());
   }
   if (raw.grid.length > GRID_W * GRID_H * 2) return null;
-  return { ...out, scoreAtStart: raw.scoreAtStart, statsAtStart: startStats, clock: raw.clock, grid: raw.grid.slice(), patrols, tracers, routes };
+  return { ...out, scoreAtStart: raw.scoreAtStart, statsAtStart: startStats, clock: raw.clock, grid: raw.grid.slice(), patrols, tracers, powerups, routes };
 }

@@ -208,3 +208,24 @@ def test_the_tutorial_screens_fit_every_screen_size(open_page, engine, name, wid
     assert page.evaluate('__pp.state().phase') == 'clear' and page.locator('#clearOverlay').is_visible() and page.locator('#clearNote').is_visible()
     check(page.evaluate(MEASURE), touch, f'{name} tutorial finish')
     shot('7-tutorial-done')
+
+
+@pytest.mark.parametrize('name,width,height,mode,dpr', SIZES, ids=[s[0] for s in SIZES])
+def test_power_up_chips_and_a_pickup_sit_on_the_board_on_every_screen_size(open_page, engine, name, width, height, mode, dpr):
+    """Three effects at once (the most there can be) as chips over the board's corner, and a pickup on the field."""
+    touch = mode == 'touch'
+    page = open_page(viewport={'width': width, 'height': height}, dpr=dpr, has_touch=touch, is_mobile=touch)
+    page.evaluate('__pp.game.newRun({ seed: "chips" }); __pp.game.startLevel(3); __pp.setPatrols([{ x: 100, y: 60 }]); __pp.freeze(true); __pp.game.powerups.place("shield", 60, 36)')
+    page.evaluate('const p = __pp.game.powerups, now = __pp.game.clock.now; p.until.freeze = now + 2.4; p.until.shield = now + 4; p.until.slow = now + 1')
+    settle(page)
+    chips = page.evaluate("[...document.querySelectorAll('.power')].map((c) => { const r = c.getBoundingClientRect(); return { kind: c.dataset.kind, l: r.left, t: r.top, r: r.right, b: r.bottom, w: r.width, h: r.height }; })")
+    assert [c['kind'] for c in chips] == ['freeze', 'shield', 'slow']
+    board = page.evaluate("(() => { const r = document.getElementById('gameCanvas').getBoundingClientRect(); return { l: r.left, t: r.top, r: r.right, b: r.bottom }; })()")
+    for c in chips:
+        assert c['l'] >= board['l'] - 0.5 and c['r'] <= board['r'] + 0.5 and c['t'] >= board['t'] - 0.5 and c['b'] <= board['b'] + 0.5, f'[{name}] a {c["kind"]} chip leaves the board: {c} in {board}'
+        assert 28 <= c['w'] <= 40 and abs(c['w'] - c['h']) < 0.5, f'[{name}] a {c["kind"]} chip is {c["w"]:.0f}x{c["h"]:.0f}'
+    assert chips[0]['r'] <= chips[1]['l'] + 0.5 and chips[1]['r'] <= chips[2]['l'] + 0.5, f'[{name}] chips overlap'
+    check(page.evaluate(MEASURE), touch, f'{name} power-ups')
+    OUT.mkdir(parents=True, exist_ok=True)
+    page.screenshot(path=str(OUT / f'{engine}-{name}-8-powerups.png'))
+

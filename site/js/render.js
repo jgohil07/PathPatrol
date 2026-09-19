@@ -8,6 +8,8 @@
 import { BOARD_W, BOARD_H, GRID_W, GRID_H } from './config.js';
 import { FIELD, WALL, BORDER } from './grid.js';
 import { TRAIL_LENGTH } from './physics.js';
+import { GLYPHS } from './glyphs.js';
+import { POWER } from './powerups.js';
 
 const PALETTES = {
   flight: [
@@ -28,6 +30,8 @@ export const paletteFor = (theme, level) => {
    CSS px across on a phone, so the finger ring has to be large to stay visible around it. Tune on a
    real device; the mouse ring only needs to be findable. */
 const TIP_RING_PX = { coarse: 34, fine: 13 };
+
+const GLYPH_PATHS = Object.fromEntries(Object.entries(GLYPHS).map(([kind, d]) => [kind, new Path2D(d)]));
 
 const INK = [11, 20, 34];                 // #0b1422: claimed ground and the frame
 const DOT = [22, 40, 58];                 // a faint dot-matrix on claimed ground, every 4 units
@@ -58,6 +62,7 @@ export class Renderer {
     this.reducedMotion = false;                               // stops the dashes on a live route from running
     this.ghost = null;                                        // where the tutorial's ghost finger was drawn this frame (for tests)
     this.fx = null;                                           // particles, popups and shake (set by main.js)
+    this.pickupDrawn = null;                                  // the power-up drawn this frame, if any (for tests)
     this.flashAlpha = 0;                                      // the red "life lost" tint drawn this frame (for tests)
     this._shake = { x: 0, y: 0 };
 
@@ -93,8 +98,13 @@ export class Renderer {
     view.applyTransform(ctx, shake.x, shake.y);
     this._drawLiveRoute();
     this._drawGhost();
+    this._drawPickup(now);
     this._drawPatrols(alpha);
     this._drawTracers(alpha, now);
+    if (game.powerups.active('freeze')) {                                                        // everything is still: a faint ice-blue cast
+      ctx.fillStyle = 'rgba(160,225,255,0.07)';
+      ctx.fillRect(0, 0, BOARD_W, BOARD_H);
+    }
     if (fx) fx.drawBoard(ctx, now, view.fit.scale);
     // The red tint for a lost life. With reduced motion it is a faint steady tint, not a flash.
     this.flashAlpha = game.flash > 0 ? Math.min(game.flash * 0.5, this.reducedMotion ? 0.12 : 0.5) : 0;
@@ -216,6 +226,7 @@ export class Renderer {
     const route = game.route;
     if (!route.down) return;
     const drawing = route.mode === 'drawing';
+    if (drawing && game.powerups.shielded) this._shieldGlow(route);
     if (drawing) this._strokeRoute(ctx, route.points, [route.tip.x, route.tip.y], true);
     if (!drawing && route.mode !== 'armed') return;
     const scale = view.fit.scale;                              // CSS px per world unit
@@ -273,6 +284,57 @@ export class Renderer {
     ctx.arc(g.x, y, 3.5 / scale, 0, Math.PI * 2);
     ctx.fillStyle = `rgba(${colour},0.95)`;
     ctx.fill();
+    ctx.restore();
+  }
+
+  /* The shield power-up: an aqua glow around the route being drawn, because patrols bounce off it. */
+  _shieldGlow(route) {
+    const { ctx } = this;
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = 3.4;
+    ctx.strokeStyle = 'rgba(114,244,209,0.32)';
+    ctx.beginPath();
+    ctx.moveTo(route.points[0], route.points[1]);
+    for (let i = 2; i < route.points.length; i += 2) ctx.lineTo(route.points[i], route.points[i + 1]);
+    ctx.lineTo(route.tip.x, route.tip.y);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  /* The pickup waiting on the board: a dark badge with its glyph and a ring that drains as it runs out. */
+  _drawPickup(now) {
+    const { ctx, game, view } = this;
+    const p = game.powerups.pickup;
+    this.pickupDrawn = null;
+    if (!p) return;
+    this.pickupDrawn = { x: p.x, y: p.y, kind: p.kind };
+    const left = Math.max(0, Math.min(1, (p.expires - game.clock.now) / POWER.lifetime));
+    const r = 2.1 * (this.reducedMotion ? 1 : 1 + 0.1 * Math.sin(now / 240));
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    if (view.fit.rotated) ctx.rotate(-Math.PI / 2);                 // the portrait board is turned a quarter: turn the badge back so its glyph reads upright
+    ctx.fillStyle = 'rgba(4,8,14,0.82)';
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,179,106,0.28)';
+    ctx.lineWidth = 0.3;
+    ctx.stroke();
+    ctx.strokeStyle = '#ffb36a';
+    ctx.lineWidth = 0.34;
+    ctx.beginPath();
+    ctx.arc(0, 0, r, -Math.PI / 2, -Math.PI / 2 + left * Math.PI * 2);
+    ctx.stroke();
+    const k = (r * 0.62) / 12;                                      // the glyph is drawn on a 24-unit grid
+    ctx.scale(k, k);
+    ctx.translate(-12, -12);
+    ctx.strokeStyle = '#f4fbf8';
+    ctx.lineWidth = 1.8;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.stroke(GLYPH_PATHS[p.kind]);
     ctx.restore();
   }
 

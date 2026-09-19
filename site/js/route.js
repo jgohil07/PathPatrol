@@ -124,7 +124,7 @@ export class RouteEngine {
      A miss is remembered once per patrol per route and paid out only if the route closes (see _close), so
      drawing near a patrol and lifting again is not a way to farm points. */
   afterStep() {
-    if (this.mode !== MODE.DRAWING) return;
+    if (this.mode !== MODE.DRAWING || this.game.powerups.shielded) return;
     const { grid, level } = this.game;
     const near = SCORE.closeCall.distance;
     for (let i = 0; i < level.patrols.length; i++) {
@@ -184,6 +184,9 @@ export class RouteEngine {
     const i = grid.index(cx, cy);
     grid.cells[i] = ROUTE;
     this.cells.push(i);
+    this.game.powerups.touch(cx, cy);                           // drawing through a pickup takes it
+    // Even with the shield, drawing onto a patrol is a hit: a route laid over one would leave it inside the solid route,
+    // or pinched against a wall. The shield is for patrols flying into the route (afterStep), which bounce instead.
     for (const p of level.patrols) {
       if (cellDistanceSq(cx, cy, p.x, p.y) < p.r * p.r) { this._hit(); return true; }
     }

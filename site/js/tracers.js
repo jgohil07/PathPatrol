@@ -85,6 +85,7 @@ export class Tracers {
     for (const tracer of this.list) {
       tracer.px = tracer.x;
       tracer.py = tracer.y;
+      if (scale <= 0) continue;                                          // frozen: standing still, and it cannot catch anything either
       if (tracer.mode === 'chase') {
         if (!drawing) { this._endChase(tracer); continue; }
         this._chase(tracer, step * TRACER.chase, route);

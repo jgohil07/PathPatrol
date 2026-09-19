@@ -215,6 +215,14 @@ kbd { display: inline-block; min-width: 1.7em; margin-inline: 1px; padding: 2px 
 .receipt dd { color: var(--ink); font-weight: 500; text-align: right; }
 .crash-detail { max-width: 440px; color: var(--ink-soft); font-size: 11px; white-space: pre-wrap; word-break: break-word; user-select: text; -webkit-user-select: text; }
 .crash-detail:empty { display: none; }
+/* Active power-ups: round chips in the board's bottom-left corner, laid over it so they never change the layout, and
+   letting every touch through to the board underneath. */
+.powers { position: absolute; left: 10px; bottom: 10px; z-index: 4; display: flex; gap: 6px; pointer-events: none; }
+.power { display: block; width: 34px; height: 34px; }
+.power svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.power-bg { fill: rgba(4, 8, 14, .82); stroke: rgba(255, 179, 106, .25); stroke-width: 2; }
+.power-ring { fill: none; stroke: var(--amber); stroke-width: 2.6; stroke-linecap: round; transform: rotate(-90deg); transform-origin: 18px 18px; }
+.power-glyph { fill: none; stroke: #f4fbf8; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .fps { position: absolute; top: 8px; left: 8px; z-index: 6; padding: 3px 6px; border: 1px solid var(--line); border-radius: 3px; background: rgba(4, 8, 14, .72); color: var(--aqua); font-size: 10px; pointer-events: none; }
 
 /* --- dialogs ----------------------------------------------------------------------------------- */

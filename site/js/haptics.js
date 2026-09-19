@@ -22,6 +22,7 @@ export class Haptics {
     });
     game.on('capture', (result) => this.pulse(result.gained >= 10 ? 'large' : result.gained >= 2 ? 'medium' : 'small'));
     game.on('extraLife', () => this.pulse('extraLife'));
+    game.on('power', (event) => { if (event.type === 'start') this.pulse('medium'); });
     game.on('clear', () => this.pulse('clear'));
     game.on('over', () => this.pulse('over'));
   }

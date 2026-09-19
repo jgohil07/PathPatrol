@@ -48,6 +48,7 @@ export class Fx {
 
     game.on('capture', (result) => this._onCapture(result));
     game.on('route', (event) => this._onRoute(event));
+    game.on('power', (event) => this._onPower(event));
     game.on('tracer', (event) => { if (event.type === 'chase') this.ring(event.x, event.y, 'amber', { from: 1.5, to: 7, ms: 520 }); });
     game.on('extraLife', () => this.popup('+1 LIFE', BOARD_CENTRE.x, 14, 'amber'));
     game.on('clear', (tally) => this._onClear(tally));
@@ -142,6 +143,15 @@ export class Fx {
     } else if (event.type === 'closecall') {
       const p = game.level.patrols[event.patrol];
       if (p) { this.ring(p.x, p.y, 'amber', { from: 1.8, to: 6.5, ms: 460 }); this.popup('CLOSE', p.x, p.y - 2.5, 'amber'); }
+    }
+  }
+
+  _onPower(event) {
+    if (event.type === 'spawn') this.ring(event.x, event.y, 'amber', { from: 1, to: 5, ms: 600 });
+    else if (event.type === 'start') {
+      this.ring(event.x, event.y, 'amber', { from: 1.5, to: 8, ms: 520 });
+      this.burst(event.x, event.y, 18, 'amber', { speed: 12, life: 0.6 });
+      this.popup(event.kind.toUpperCase(), event.x, event.y, 'amber');
     }
   }
 

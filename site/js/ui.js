@@ -5,6 +5,8 @@
    sentence, because a polite live region rewritten twice in a row reads only the last write. */
 import { START_LIVES, APP_VERSION, levelInfo } from './config.js';
 import { PHASE } from './game.js';
+import { GLYPHS, POWER_NAMES } from './glyphs.js';
+import { POWER } from './powerups.js';
 
 const IDS = [
   'app', 'startButton', 'resumeRunButton', 'savedLine', 'againButton', 'reloadButton', 'pauseButton', 'resumeButton', 'restartButton',
@@ -13,7 +15,7 @@ const IDS = [
   'clearOverlay', 'clearEyebrow', 'clearTotal', 'tally', 'nextLabel', 'clearNote', 'tutorialButton', 'bestScore',
   'titleRecords', 'versionLabel', 'versionLine', 'pauseEyebrow', 'pauseTitle', 'receipt', 'endSummary',
   'crashDetail', 'fpsMeter', 'storageNote', 'announcer',
-  'settingsDialog', 'helpDialog', 'soundSwitch', 'hapticsSwitch', 'hapticsRow', 'flightButton', 'driveButton', 'fpsSwitch',
+  'powers', 'settingsDialog', 'helpDialog', 'soundSwitch', 'hapticsSwitch', 'hapticsRow', 'flightButton', 'driveButton', 'fpsSwitch',
   'bestClear', 'bestLevel', 'runsPlayed', 'levelsWon', 'resetStatsButton',
 ];
 
@@ -60,6 +62,7 @@ export class UI {
     this.el = Object.fromEntries(IDS.map((id) => [id, byId(id)]));
     this.motionButtons = [...this.el.settingsDialog.querySelectorAll('[data-motion]')];
     this._reduceQuery = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null;
+    this._powerKey = '';                      // which power-up chips are showing
     this._toastTimer = 0;
     this._coaching = false;                  // the tutorial's message holds the console line
     this._resetTimer = 0;
@@ -71,6 +74,7 @@ export class UI {
     this._lastSpoken = '';
     this._flip = false;
     this._wire();
+    if (this.loop) this.loop.onFrame = () => this.updatePowers();
     this.el.versionLabel.textContent = `v${APP_VERSION}`;
     this.el.versionLine.textContent = `v${APP_VERSION}`;
     this.renderTheme();
@@ -132,6 +136,7 @@ export class UI {
     game.on('route', (event) => { if (event.type === 'edge-hint') this.hintEdge(); });
     game.on('levelStart', ({ lives }) => this.announce(`${lives} ${plural(lives, 'life', 'lives')}`));
     game.on('life', ({ lives }) => this.announce(`${lives} ${plural(lives, 'life', 'lives')} left`));
+    game.on('power', (event) => this.onPower(event));
     game.on('tracer', (event) => { if (event.type === 'chase') this.toast('A tracer is chasing your route', 1400); });
     game.on('capture', ({ percent, points }) => this.announce(`${percent.toFixed(1)} percent cleared${points ? `, ${number(points)} points` : ''}`));
     game.on('clear', (tally) => this.renderTally(tally));
@@ -333,6 +338,58 @@ export class UI {
       parts.push(`${r.runs} ${plural(r.runs, 'run', 'runs')}`);
       el.titleRecords.textContent = `> ${parts.join(' · ')}`;
     }
+  }
+
+  /* --- power-ups ------------------------------------------------------------------------------ */
+
+  onPower(event) {
+    const name = POWER_NAMES[event.kind];
+    if (event.type === 'spawn') this.announce(`Power-up: ${name}`);
+    else if (event.type === 'start') this.announce(`${name} on for ${event.seconds} seconds`);
+    else if (event.type === 'end') this.announce(`${name} ended`);
+  }
+
+  /* Every frame while a power-up is on: a round chip per active effect, its ring draining as the time runs out. The
+     chips are built when the set changes and only their ring and label are touched after that. They belong to a live
+     run (playing, paused, or counting back in): over a win or game-over screen the clock has stopped meaning anything. */
+  updatePowers() {
+    const { el, game } = this;
+    const live = game.phase === PHASE.PLAYING || game.phase === PHASE.PAUSED || game.phase === PHASE.COUNTDOWN;
+    const active = live ? POWER.kinds.filter((kind) => game.powerups.active(kind)) : [];
+    const key = active.join();
+    if (key !== this._powerKey) {
+      this._powerKey = key;
+      el.powers.replaceChildren(...active.map((kind) => this._chip(kind)));
+    }
+    for (const chip of el.powers.children) {
+      const kind = chip.dataset.kind;
+      const left = game.powerups.remaining(kind);
+      chip.querySelector('.power-ring').setAttribute('stroke-dashoffset', String(100 * (1 - left / POWER[kind])));
+      const seconds = Math.ceil(left);
+      if (chip.dataset.seconds !== String(seconds)) {
+        chip.dataset.seconds = String(seconds);
+        chip.setAttribute('aria-label', `${POWER_NAMES[kind]}, ${seconds} ${seconds === 1 ? 'second' : 'seconds'} left`);
+      }
+    }
+  }
+
+  _chip(kind) {
+    const NS = 'http://www.w3.org/2000/svg';
+    const make = (tag, attrs) => { const node = document.createElementNS(NS, tag); for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v); return node; };
+    const svg = make('svg', { viewBox: '0 0 36 36' });
+    svg.append(
+      make('circle', { class: 'power-bg', cx: 18, cy: 18, r: 16 }),
+      make('circle', { class: 'power-ring', cx: 18, cy: 18, r: 16, pathLength: 100, 'stroke-dasharray': 100, 'stroke-dashoffset': 0 }),
+    );
+    const glyph = make('g', { transform: 'translate(6 6)' });
+    glyph.append(make('path', { class: 'power-glyph', d: GLYPHS[kind] }));
+    svg.append(glyph);
+    const chip = document.createElement('span');
+    chip.className = 'power';
+    chip.dataset.kind = kind;
+    chip.setAttribute('role', 'img');
+    chip.append(svg);
+    return chip;
   }
 
   /* An interrupted run on offer: the Resume button leads, Start run steps back to a plain button. */

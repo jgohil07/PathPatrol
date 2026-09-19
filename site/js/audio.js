@@ -171,6 +171,7 @@ export class Sound {
       else if (event.type === 'cancel' && (event.reason === 'lift' || event.reason === 'cancel')) this.lifted();
     });
     game.on('tracer', (event) => { if (event.type === 'chase') this.ping(); });
+    game.on('power', (event) => { if (event.type === 'start') this.pickup(); else if (event.type === 'end') this.lifted(); });
     game.on('capture', (result) => this.chime(result.gained, result.combo));
     game.on('extraLife', () => this.extraLife());
     game.on('clear', () => this.clear());
