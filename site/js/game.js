@@ -115,6 +115,7 @@ export class Game extends Emitter {
     this._build(number, this.run.seed);
     this._setPhase(PHASE.PLAYING);
     this.toast(`Level ${pad2(number)} · clear ${this.level.info.target}%`, 1400);
+    this.emit('levelStart', { level: number, target: this.level.info.target, lives: this.run.lives });
     this.emit('hud');
   }
 
@@ -125,6 +126,7 @@ export class Game extends Emitter {
     this._build(this.level.number, this.run.seed);
     this._setPhase(PHASE.PLAYING);
     this.toast('Level restarted', 900);
+    this.emit('levelStart', { level: this.level.number, target: this.level.info.target, lives: this.run.lives, restarted: true });
     this.emit('hud');
     return true;
   }

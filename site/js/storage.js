@@ -4,10 +4,11 @@
 import { STORAGE_KEY, LEGACY_KEY } from './config.js';
 
 const THEMES = ['flight', 'drive'];
+const MOTIONS = ['auto', 'reduced', 'full'];
 
 export const defaultData = () => ({
   v: 2,
-  settings: { sound: true, theme: 'flight' },
+  settings: { sound: true, theme: 'flight', motion: 'auto', showFps: false },
   records: { bestClear: 0, bestLevel: 0, runs: 0, wins: 0 },
 });
 
@@ -21,6 +22,8 @@ export function sanitize(input) {
   const records = isObject(input) && isObject(input.records) ? input.records : {};
   if (typeof settings.sound === 'boolean') out.settings.sound = settings.sound;
   if (THEMES.includes(settings.theme)) out.settings.theme = settings.theme;
+  if (MOTIONS.includes(settings.motion)) out.settings.motion = settings.motion;
+  if (typeof settings.showFps === 'boolean') out.settings.showFps = settings.showFps;
   for (const key of Object.keys(out.records)) out.records[key] = count(records[key], out.records[key]);
   return out;
 }

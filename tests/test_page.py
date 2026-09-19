@@ -26,6 +26,16 @@ def reload_ready(page):
     page.wait_for_function('window.__pp !== undefined')
 
 
+def open_settings(page):
+    page.click('#settingsButton')
+    page.wait_for_function("document.getElementById('settingsDialog').open")
+
+
+def close_dialog(page):
+    page.keyboard.press('Escape')
+    page.wait_for_function("!document.querySelector('dialog[open]')")
+
+
 # ---- boot ---------------------------------------------------------------------------------------
 def test_boots_clean_and_shows_the_title(open_page):
     page = open_page()
@@ -69,7 +79,8 @@ def test_starting_a_run_shows_the_hud_and_patrols_move(open_page):
     assert page.locator('#levelLabel').inner_text() == '01'
     assert hearts(page) == 3 and page.locator('#lives').get_attribute('aria-label') == '3 lives'
     assert page.locator('#pauseButton').is_enabled() and page.locator('#restartButton').is_enabled()
-    assert page.locator('#pauseButton').inner_text().startswith('Pause')
+    assert page.locator('#pauseButton').get_attribute('aria-label') == 'Pause'
+    assert page.locator('#app').get_attribute('data-phase') == 'playing'
     first = st['patrols'][0]
     page.wait_for_function(f"(() => {{ const p = __pp.state().patrols[0]; return p.x !== {first['x']} || p.y !== {first['y']}; }})()")
     assert page.locator('#runsPlayed').inner_text() == '1'
@@ -91,7 +102,8 @@ def test_d4_game_over_offers_a_fresh_run_not_a_restart(open_page):
         page.evaluate('__pp.game.loseLife()')
     assert state(page)['phase'] == 'over'
     assert page.locator('#endOverlay').is_visible()
-    assert 'level 01' in page.locator('#endSummary').inner_text()
+    receipt = page.evaluate("Object.fromEntries([...document.querySelectorAll('#receipt dt')].map((dt) => [dt.textContent, dt.nextElementSibling.textContent]))")
+    assert receipt['Level reached'] == '01' and receipt['Area cleared'] == '0.0%'
     assert page.locator('#restartButton').is_disabled() and page.locator('#pauseButton').is_disabled()
     page.click('#againButton')
     st = state(page)
@@ -143,19 +155,22 @@ def test_d9_blocked_storage_does_not_stop_the_game(open_page):
 
 def test_d15_reset_needs_two_taps_and_keeps_the_theme(open_page):
     page = open_page()
-    seed = {'v': 2, 'settings': {'sound': False, 'theme': 'drive'}, 'records': {'bestClear': 61.5, 'bestLevel': 4, 'runs': 9, 'wins': 3}}
+    seed = {'v': 2, 'settings': {'sound': False, 'theme': 'drive', 'motion': 'reduced', 'showFps': True},
+            'records': {'bestClear': 61.5, 'bestLevel': 4, 'runs': 9, 'wins': 3}}
     page.evaluate(f"localStorage.setItem('{STORE}', JSON.stringify({json.dumps(seed)}))")
     reload_ready(page)
+    open_settings(page)
     assert page.locator('#bestClear').inner_text() == '61.5%' and page.locator('#bestLevel').inner_text() == '04'
     assert page.locator('#runsPlayed').inner_text() == '9' and page.locator('#levelsWon').inner_text() == '3'
-    assert 'active' in page.locator('#driveButton').get_attribute('class')
+    assert page.locator('#driveButton').get_attribute('aria-checked') == 'true'
     assert page.locator('#soundButton').get_attribute('aria-pressed') == 'false'
+    assert page.locator('#soundSwitch').get_attribute('aria-checked') == 'false'
 
     page.click('#resetStatsButton')                        # first tap only arms it
-    assert page.locator('#resetStatsButton').inner_text() == 'Tap again to reset'
+    assert page.locator('#resetStatsButton').text_content() == 'Tap again to reset'      # raw text: CSS upper-cases what inner_text() returns
     assert page.locator('#runsPlayed').inner_text() == '9'
     page.wait_for_timeout(3300)                            # ...and it disarms itself
-    assert page.locator('#resetStatsButton').inner_text() == 'Reset local records'
+    assert page.locator('#resetStatsButton').text_content() == 'Reset local records'
     page.click('#resetStatsButton')
     assert page.locator('#runsPlayed').inner_text() == '9'
 
@@ -163,7 +178,7 @@ def test_d15_reset_needs_two_taps_and_keeps_the_theme(open_page):
     assert page.locator('#runsPlayed').inner_text() == '0' and page.locator('#bestClear').inner_text() == '0.0%'
     stored = json.loads(page.evaluate(f"localStorage.getItem('{STORE}')"))
     assert stored['records'] == {'bestClear': 0, 'bestLevel': 0, 'runs': 0, 'wins': 0}
-    assert stored['settings'] == {'sound': False, 'theme': 'drive'}
+    assert stored['settings'] == {'sound': False, 'theme': 'drive', 'motion': 'reduced', 'showFps': True}
 
 
 def test_d11_mute_is_remembered_across_reloads(open_page):
@@ -181,16 +196,18 @@ def test_prototype_records_and_theme_are_migrated(open_page):
     legacy = json.dumps({'bestClear': 55.5, 'bestLevel': 4, 'runs': 9, 'wins': 3, 'theme': 'drive'})
     page.evaluate(f"localStorage.removeItem('{STORE}'); localStorage.setItem('{LEGACY}', {json.dumps(legacy)})")
     reload_ready(page)
+    open_settings(page)
     assert page.locator('#bestClear').inner_text() == '55.5%' and page.locator('#runsPlayed').inner_text() == '9'
-    assert 'active' in page.locator('#driveButton').get_attribute('class')
+    assert page.locator('#driveButton').get_attribute('aria-checked') == 'true'
     assert page.locator('#runnerLabel').inner_text() == '1 CAR'
     assert page.evaluate(f"localStorage.getItem('{LEGACY}')") == legacy         # the old key is left alone
 
 
 def test_theme_button_switches_visuals_and_is_remembered(open_page):
     page = open_page()
+    open_settings(page)
     page.click('#driveButton')
-    assert page.locator('#driveButton').get_attribute('aria-pressed') == 'true' and page.locator('#flightButton').get_attribute('aria-pressed') == 'false'
+    assert page.locator('#driveButton').get_attribute('aria-checked') == 'true' and page.locator('#flightButton').get_attribute('aria-checked') == 'false'
     assert page.locator('#runnerLabel').inner_text() == '1 CAR'
     assert page.evaluate('__pp.renderer.theme') == 'drive'
     reload_ready(page)
@@ -264,7 +281,8 @@ def test_a_manual_pause_resumes_at_once(open_page):
     page = open_page()
     start(page)
     page.click('#pauseButton')
-    assert page.locator('#pauseButton').inner_text().startswith('Resume')
+    assert page.locator('#pauseButton').get_attribute('aria-label') == 'Resume'
+    assert page.locator('#pauseButton').get_attribute('data-state') == 'paused'
     assert page.locator('#pauseTitle').inner_text() == 'Take a breath.'
     page.click('#resumeButton')
     assert state(page)['phase'] == 'playing'

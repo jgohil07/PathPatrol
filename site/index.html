@@ -1,104 +1,197 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-motion="auto">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#0b1220" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#070b12" />
+    <meta name="color-scheme" content="dark" />
     <meta name="description" content="A modern homage to classic feature-phone territory-cutting games." />
     <title>Path Patrol — Retro territory game</title>
     <!-- Placeholder so the browser does not request /favicon.ico (a 404). Phase 6.1 replaces it with the real icons. -->
     <link rel="icon" href="data:," />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+    <link rel="preload" href="assets/fonts/dm-mono-400.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="assets/fonts/space-grotesk-variable.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="css/app.css" />
   </head>
   <body>
-    <main class="app-shell">
-      <header class="topbar">
-        <a class="brand" href="#" aria-label="Path Patrol home">
-          <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
-          <span>PATH<span>PATROL</span></span>
-        </a>
-        <div class="top-actions">
-          <button class="icon-button" id="soundButton" type="button" aria-label="Toggle sound" aria-pressed="true">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10v4h4l5 4V6L8 10H4Zm12.5 2a4.5 4.5 0 0 0-2-3.74v7.48A4.5 4.5 0 0 0 16.5 12Zm-2-8.05v2.07a6.5 6.5 0 0 1 0 11.96v2.07a8.5 8.5 0 0 0 0-16.1Z"/></svg>
-          </button>
-          <button class="pause-button" id="pauseButton" type="button">Pause <kbd>P</kbd></button>
-        </div>
-      </header>
+    <!-- Icons: drawn, never typed as glyphs, because neither font has arrows or geometric symbols. -->
+    <svg class="sprite" aria-hidden="true" focusable="false">
+      <symbol id="i-pause" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14" /></symbol>
+      <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.6v14.8L19 12z" fill="currentColor" stroke="none" /></symbol>
+      <symbol id="i-settings" viewBox="0 0 24 24"><path d="M4 7h8M18 7h2M4 12h2M12 12h8M4 17h10M20 17h0" /><circle cx="15" cy="7" r="2.2" /><circle cx="9" cy="12" r="2.2" /><circle cx="17" cy="17" r="2.2" /></symbol>
+      <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><path d="M9.6 9.4a2.5 2.5 0 1 1 3.7 2.2c-.9.5-1.3 1-1.3 2" /><circle cx="12" cy="17.2" r=".7" fill="currentColor" stroke="none" /></symbol>
+      <symbol id="i-sound-on" viewBox="0 0 24 24"><path d="M4 10v4h4l5 4V6l-5 4H4z" /><path d="M16.5 9.2a4 4 0 0 1 0 5.6M19.2 6.5a7.6 7.6 0 0 1 0 11" /></symbol>
+      <symbol id="i-sound-off" viewBox="0 0 24 24"><path d="M4 10v4h4l5 4V6l-5 4H4z" /><path d="M17 9.5l4.5 5M21.5 9.5L17 14.5" /></symbol>
+      <symbol id="i-restart" viewBox="0 0 24 24"><path d="M4.6 12a7.4 7.4 0 1 0 2.3-5.4" /><path d="M4.4 4.2v4.4h4.4" /></symbol>
+      <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" /></symbol>
+      <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13.5 6.5L19 12l-5.5 5.5" /></symbol>
+    </svg>
 
-      <section class="game-layout" aria-label="Path Patrol game">
-        <aside class="level-panel panel">
-          <div class="eyebrow">Current run</div>
-          <div class="level-number"><span>LEVEL</span><strong id="levelLabel">01</strong></div>
-          <div class="status-row"><span>Lives</span><div class="lives" id="lives" role="img" aria-label="3 lives"></div></div>
-          <div class="status-row"><span>Target</span><strong id="targetLabel">65%</strong></div>
-          <div class="divider"></div>
-          <p class="tiny-copy">Draw a line from an edge across the colour to another edge. If a patrol touches it before you finish, you lose a life.</p>
-        </aside>
+    <div class="app" id="app" data-phase="boot">
+      <div class="chrome">
+        <header class="bar">
+          <div class="brand" role="img" aria-label="Path Patrol">
+            <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+            <span class="brand-name" aria-hidden="true">PATH<span>/</span>PATROL</span>
+          </div>
+          <div class="actions">
+            <button class="btn btn--ghost btn--adaptive only-fine" id="restartButton" type="button" aria-label="Restart level">
+              <svg class="icon" aria-hidden="true"><use href="#i-restart" /></svg><span class="btn-text only-fine">Restart</span><kbd class="only-fine">R R</kbd>
+            </button>
+            <button class="btn btn--icon" id="soundButton" type="button" aria-label="Sound" aria-pressed="true">
+              <svg class="icon icon-on" aria-hidden="true"><use href="#i-sound-on" /></svg>
+              <svg class="icon icon-off" aria-hidden="true"><use href="#i-sound-off" /></svg>
+            </button>
+            <button class="btn btn--icon" id="helpButton" type="button" aria-label="How to play" aria-haspopup="dialog">
+              <svg class="icon" aria-hidden="true"><use href="#i-help" /></svg>
+            </button>
+            <button class="btn btn--icon" id="settingsButton" type="button" aria-label="Settings" aria-haspopup="dialog">
+              <svg class="icon" aria-hidden="true"><use href="#i-settings" /></svg>
+            </button>
+            <button class="btn btn--ghost btn--adaptive" id="pauseButton" type="button" aria-label="Pause">
+              <svg class="icon icon-pause" aria-hidden="true"><use href="#i-pause" /></svg>
+              <svg class="icon icon-play" aria-hidden="true"><use href="#i-play" /></svg>
+              <span class="btn-text only-fine">Pause</span><kbd class="only-fine">P</kbd>
+            </button>
+          </div>
+        </header>
 
-        <section class="play-section">
-          <div class="game-meta">
-            <div><span class="eyebrow">Area cleared</span><strong id="areaLabel">0.0%</strong></div>
-            <div class="progress-track" aria-hidden="true"><div id="progressFill"></div><span id="targetMarker"></span></div>
-            <div class="runner-count"><span class="runner-dot"></span><span id="runnerLabel">1 RUNNER</span></div>
+        <section class="hud" aria-label="Status">
+          <div class="stat stat--level"><span class="stat-key">LVL</span><strong class="stat-val" id="levelLabel">01</strong></div>
+          <div class="stat stat--lives"><span class="stat-key">LIVES</span><span class="lives" id="lives" role="img" aria-label="3 lives"></span></div>
+          <div class="stat stat--clear">
+            <span class="stat-key">CLR</span><strong class="stat-val" id="areaLabel">0.0%</strong>
+            <span class="stat-target"><span class="chevron" aria-hidden="true"></span><span id="targetLabel">65%</span></span>
+            <div class="meter" aria-hidden="true"><i id="progressFill"></i><b id="targetMarker"></b></div>
           </div>
-          <div class="board-frame" id="boardFrame">
-            <canvas id="gameCanvas" aria-label="Game field. Draw a line from an edge across the coloured area to another edge."></canvas>
-            <div class="board-sheen" aria-hidden="true"></div>
-            <div class="toast" id="toast" role="status" aria-live="polite"></div>
-            <div class="pause-overlay hidden" id="pauseOverlay">
-              <span class="eyebrow" id="pauseEyebrow">Run paused</span>
-              <strong id="pauseTitle">Take a breath.</strong>
-              <button type="button" class="primary-button" id="resumeButton">Resume <kbd>P</kbd></button>
-            </div>
-            <div class="start-overlay hidden" id="endOverlay">
-              <div class="start-symbol" aria-hidden="true"><span></span><span></span></div>
-              <span class="eyebrow">No lives left</span>
-              <h1>Run interrupted.</h1>
-              <p id="endSummary"></p>
-              <button type="button" class="primary-button" id="againButton">New run <span>→</span></button>
-              <small>Local records are kept on this device.</small>
-            </div>
-            <div class="pause-overlay hidden" id="crashOverlay" role="alert">
-              <span class="eyebrow">Something broke</span>
-              <strong>Please reload.</strong>
-              <p class="crash-detail" id="crashDetail"></p>
-              <button type="button" class="primary-button" id="reloadButton">Reload</button>
-            </div>
-            <div class="start-overlay" id="startOverlay">
-              <div class="start-symbol" aria-hidden="true"><span></span><span></span></div>
-              <span class="eyebrow">A feature-phone classic, remade</span>
-              <h1>Claim the quiet<br />side of the board.</h1>
-              <p>Start on an edge and draw a line across the field to another edge. The side without patrols is yours.</p>
-              <button type="button" class="primary-button" id="startButton">Start run <span>→</span></button>
-              <small>Draw edge to edge · lift early to cancel</small>
-            </div>
-          </div>
-          <div class="controls-row">
-            <div class="scene-control" aria-label="Graphics style">
-              <span class="control-label">Visuals</span>
-              <button class="scene-button active" id="flightButton" type="button" aria-pressed="true"><span class="scene-icon plane-icon"></span>Flight</button>
-              <button class="scene-button" id="driveButton" type="button" aria-pressed="false"><span class="scene-icon car-icon"></span>Drive</button>
-            </div>
-            <button class="text-button" id="restartButton" type="button">↻ Restart level</button>
-          </div>
+          <div class="stat stat--runners"><span class="stat-val" id="runnerLabel">1 PLANE</span></div>
         </section>
 
-        <aside class="stats-panel panel">
-          <div class="eyebrow">Local record</div>
-          <div class="record"><span>Best clear</span><strong id="bestClear">0.0%</strong></div>
-          <div class="record"><span>Highest level</span><strong id="bestLevel">—</strong></div>
-          <div class="record"><span>Runs played</span><strong id="runsPlayed">0</strong></div>
-          <div class="record"><span>Levels won</span><strong id="levelsWon">0</strong></div>
-          <div class="divider"></div>
-          <button class="text-button reset-button" id="resetStatsButton" type="button">Reset local records</button>
-        </aside>
-      </section>
+        <p class="console" id="toast" aria-hidden="true"></p>
+      </div>
 
-      <footer><span>Designed for a thumb. Built for the browser.</span><span id="storageNote">All progress stays on this device.</span></footer>
-    </main>
+      <main class="stage" id="stage">
+        <div class="board" id="boardFrame">
+          <canvas id="gameCanvas" aria-label="Game field. Draw a line from an edge across the coloured area to another edge."></canvas>
+
+          <div class="overlay overlay--title" id="startOverlay">
+            <div class="panel">
+              <div class="start-symbol" aria-hidden="true"><span></span><span></span></div>
+              <h1 class="title">PATH<span class="slash">/</span>PATROL <small id="versionLabel">v1.0.0</small></h1>
+              <p class="tagline">&gt; claim the quiet side of the board<span class="caret" aria-hidden="true">_</span></p>
+              <div class="cta">
+                <button type="button" class="btn btn--primary btn--big" id="startButton"><svg class="icon" aria-hidden="true"><use href="#i-play" /></svg>Start run</button>
+              </div>
+              <p class="records" id="titleRecords"></p>
+              <p class="fine">Start on an edge · draw across · finish on an edge</p>
+            </div>
+          </div>
+
+          <div class="overlay overlay--pause" id="pauseOverlay">
+            <div class="panel">
+              <span class="eyebrow" id="pauseEyebrow">Run paused</span>
+              <strong class="big" id="pauseTitle">Take a breath.</strong>
+              <div class="cta">
+                <button type="button" class="btn btn--primary btn--big" id="resumeButton"><svg class="icon" aria-hidden="true"><use href="#i-play" /></svg>Resume</button>
+                <button type="button" class="btn" id="pauseRestartButton"><svg class="icon" aria-hidden="true"><use href="#i-restart" /></svg>Restart level</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="overlay overlay--end" id="endOverlay">
+            <div class="panel">
+              <span class="eyebrow">No lives left</span>
+              <h2 class="big">Run interrupted.</h2>
+              <dl class="receipt" id="receipt"></dl>
+              <p class="fine" id="endSummary"></p>
+              <div class="cta"><button type="button" class="btn btn--primary btn--big" id="againButton"><svg class="icon" aria-hidden="true"><use href="#i-play" /></svg>New run</button></div>
+            </div>
+          </div>
+
+          <div class="overlay overlay--crash" id="crashOverlay" role="alert">
+            <div class="panel">
+              <span class="eyebrow">Something broke</span>
+              <strong class="big">Please reload.</strong>
+              <p class="crash-detail" id="crashDetail"></p>
+              <div class="cta"><button type="button" class="btn btn--primary btn--big" id="reloadButton">Reload</button></div>
+            </div>
+          </div>
+
+          <div class="fps" id="fpsMeter" hidden></div>
+        </div>
+      </main>
+
+      <footer class="hints">
+        <span><kbd>P</kbd> pause</span><span><kbd>R</kbd><kbd>R</kbd> restart</span><span><kbd>M</kbd> mute</span><span><kbd>T</kbd> theme</span><span><kbd>?</kbd> help</span>
+        <span class="hints-note" id="storageNote">All progress stays on this device.</span>
+      </footer>
+    </div>
+
+    <dialog class="dialog" id="settingsDialog" aria-labelledby="settingsTitle">
+      <form method="dialog" class="dialog-body">
+        <header class="dialog-head">
+          <h2 id="settingsTitle">Settings</h2>
+          <button class="btn btn--icon" value="close" aria-label="Close settings"><svg class="icon" aria-hidden="true"><use href="#i-close" /></svg></button>
+        </header>
+        <div class="setting">
+          <span class="setting-name" id="soundLabel">Sound</span>
+          <button class="switch" id="soundSwitch" type="button" role="switch" aria-checked="true" aria-labelledby="soundLabel"><i></i></button>
+        </div>
+        <div class="setting">
+          <span class="setting-name" id="themeLabel">Visuals</span>
+          <div class="seg" role="radiogroup" aria-labelledby="themeLabel">
+            <button type="button" role="radio" id="flightButton" aria-checked="true">Flight</button>
+            <button type="button" role="radio" id="driveButton" aria-checked="false">Drive</button>
+          </div>
+        </div>
+        <div class="setting">
+          <span class="setting-name" id="motionLabel">Motion</span>
+          <div class="seg" role="radiogroup" aria-labelledby="motionLabel">
+            <button type="button" role="radio" data-motion="auto" aria-checked="true">Auto</button>
+            <button type="button" role="radio" data-motion="reduced" aria-checked="false">Reduced</button>
+            <button type="button" role="radio" data-motion="full" aria-checked="false">Full</button>
+          </div>
+        </div>
+        <div class="setting">
+          <span class="setting-name" id="fpsLabel">Frame stats</span>
+          <button class="switch" id="fpsSwitch" type="button" role="switch" aria-checked="false" aria-labelledby="fpsLabel"><i></i></button>
+        </div>
+        <h3 class="dialog-sub">Records on this device</h3>
+        <dl class="records-list">
+          <div><dt>Best clear</dt><dd id="bestClear">0.0%</dd></div>
+          <div><dt>Highest level cleared</dt><dd id="bestLevel">—</dd></div>
+          <div><dt>Runs played</dt><dd id="runsPlayed">0</dd></div>
+          <div><dt>Levels won</dt><dd id="levelsWon">0</dd></div>
+        </dl>
+        <button class="btn btn--danger" id="resetStatsButton" type="button">Reset local records</button>
+        <p class="fine version-line">Path Patrol <span id="versionLine">v1.0.0</span></p>
+      </form>
+    </dialog>
+
+    <dialog class="dialog" id="helpDialog" aria-labelledby="helpTitle">
+      <form method="dialog" class="dialog-body">
+        <header class="dialog-head">
+          <h2 id="helpTitle">How to play</h2>
+          <button class="btn btn--icon" value="close" aria-label="Close help"><svg class="icon" aria-hidden="true"><use href="#i-close" /></svg></button>
+        </header>
+        <ol class="how">
+          <li><b>Start on an edge.</b> Touch the frame or any ground you have already claimed.</li>
+          <li><b>Draw across the field</b> in any shape. The route appears under your finger the moment you move.</li>
+          <li><b>Finish on an edge.</b> The side without patrols is yours. Claim the target percentage to win the level.</li>
+          <li><b>Don't get caught.</b> If a patrol touches a route you are still drawing, you lose a life. Lifting mid-field cancels it for free.</li>
+        </ol>
+        <h3 class="dialog-sub">Keys</h3>
+        <dl class="keys">
+          <div><dt><kbd>P</kbd> / <kbd>Esc</kbd></dt><dd>Pause</dd></div>
+          <div><dt><kbd>R</kbd> <kbd>R</kbd></dt><dd>Restart the level</dd></div>
+          <div><dt><kbd>M</kbd></dt><dd>Mute or unmute</dd></div>
+          <div><dt><kbd>T</kbd></dt><dd>Switch Flight / Drive</dd></div>
+          <div><dt><kbd>?</kbd> / <kbd>H</kbd></dt><dd>This help</dd></div>
+        </dl>
+      </form>
+    </dialog>
+
+    <div class="sr-only" id="announcer" role="status" aria-live="polite" aria-atomic="true"></div>
     <script type="module" src="js/main.js"></script>
   </body>
 </html>

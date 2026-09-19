@@ -30,7 +30,8 @@ export const paletteFor = (theme, level) => {
 const TIP_RING_PX = { coarse: 34, fine: 13 };
 
 const INK = [11, 20, 34];                 // #0b1422: claimed ground and the frame
-const GLOW = [114, 244, 209, 56];         // the faint aqua rim on open ground next to a wall
+const DOT = [22, 40, 58];                 // a faint dot-matrix on claimed ground, every 4 units
+const GLOW = [114, 244, 209];             // the aqua rim on open ground next to a wall: strong at one cell, fading at two
 
 export class Renderer {
   constructor({ canvas, view, game, storage }) {
@@ -54,6 +55,7 @@ export class Renderer {
     this.staticDirty = true;
     this.dirty = true;
     this.frames = 0;                                          // for tests: draws actually performed
+    this.reducedMotion = false;                               // stops the dashes on a live route from running
 
     game.on('level', () => this.invalidateStatic());
     game.on('capture', () => this.invalidateStatic());
@@ -64,6 +66,7 @@ export class Renderer {
   invalidateStatic() { this.staticDirty = true; this.dirty = true; }
   resize() { this.invalidateStatic(); }
   setTheme(theme) { this.theme = theme; this.invalidateStatic(); }
+  setReducedMotion(on) { this.reducedMotion = !!on; }
 
   /* alpha: how far between the last two physics steps this frame falls (0..1). */
   draw(alpha = 1) {
@@ -119,7 +122,8 @@ export class Renderer {
     this.staticDirty = false;
   }
 
-  /* Claimed ground and the frame in ink; open ground next to a wall gets a faint rim. */
+  /* Claimed ground and the frame in ink, with a dot-matrix on the claimed part; open ground next to a wall
+     gets a two-cell rim, strong at the wall and fading out. */
   _paintTerritory() {
     const { cells, w, h } = this.game.grid;
     const px = this.territoryImage.data;
@@ -128,11 +132,13 @@ export class Renderer {
       for (let x = 0; x < w; x++) {
         const i = y * w + x, o = i * 4, v = cells[i];
         if (solid(v)) {
-          px[o] = INK[0]; px[o + 1] = INK[1]; px[o + 2] = INK[2]; px[o + 3] = 255;
-        } else if (v === FIELD && (
-          (x > 0 && solid(cells[i - 1])) || (x < w - 1 && solid(cells[i + 1])) ||
-          (y > 0 && solid(cells[i - w])) || (y < h - 1 && solid(cells[i + w])))) {
-          px[o] = GLOW[0]; px[o + 1] = GLOW[1]; px[o + 2] = GLOW[2]; px[o + 3] = GLOW[3];
+          const dot = v === WALL && (x & 7) === 4 && (y & 7) === 4;
+          px[o] = dot ? DOT[0] : INK[0]; px[o + 1] = dot ? DOT[1] : INK[1]; px[o + 2] = dot ? DOT[2] : INK[2]; px[o + 3] = 255;
+        } else if (v === FIELD) {
+          let alpha = 0;
+          if ((x > 0 && solid(cells[i - 1])) || (x < w - 1 && solid(cells[i + 1])) || (y > 0 && solid(cells[i - w])) || (y < h - 1 && solid(cells[i + w]))) alpha = 66;
+          else if ((x > 1 && solid(cells[i - 2])) || (x < w - 2 && solid(cells[i + 2])) || (y > 1 && solid(cells[i - 2 * w])) || (y < h - 2 && solid(cells[i + 2 * w]))) alpha = 26;
+          px[o] = GLOW[0]; px[o + 1] = GLOW[1]; px[o + 2] = GLOW[2]; px[o + 3] = alpha;
         } else {
           px[o + 3] = 0;
         }
@@ -179,7 +185,7 @@ export class Renderer {
     ctx.lineWidth = 1.55; ctx.strokeStyle = flight ? '#2b3a46' : '#27303a'; ctx.stroke();
     ctx.lineWidth = 1.02; ctx.strokeStyle = flight ? '#687c82' : '#4d5962'; ctx.stroke();
     ctx.setLineDash([1.25, 1.1]);
-    ctx.lineDashOffset = live ? -performance.now() / 55 : 0;
+    ctx.lineDashOffset = live && !this.reducedMotion ? -performance.now() / 55 : 0;
     ctx.lineWidth = 0.15; ctx.strokeStyle = flight ? '#e9fff7' : '#ffd36e'; ctx.stroke();
     ctx.restore();
   }
@@ -219,9 +225,9 @@ export class Renderer {
     const k = this.view.fit.k;                               // device px per unit: canvas shadows are in device px
     for (const p of this.game.level.patrols) {
       ctx.fillStyle = theme === 'flight' ? '#bef7e7' : '#ffca6c';
-      for (let k = 0; k < p.trailLen; k++) {                 // newest first
-        const j = (p.trailHead - 1 - k + TRAIL_LENGTH) % TRAIL_LENGTH;
-        ctx.globalAlpha = ((p.trailLen - k) / p.trailLen) * 0.17;
+      for (let n = 0; n < p.trailLen; n++) {                 // newest first
+        const j = (p.trailHead - 1 - n + TRAIL_LENGTH) % TRAIL_LENGTH;
+        ctx.globalAlpha = ((p.trailLen - n) / p.trailLen) * 0.17;
         ctx.fillRect(p.trail[j * 2] - 0.2, p.trail[j * 2 + 1] - 0.2, 0.4, 0.4);
       }
       ctx.globalAlpha = 1;

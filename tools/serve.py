@@ -36,6 +36,10 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 class Server(http.server.ThreadingHTTPServer):
     daemon_threads = True
     allow_reuse_address = True
+    # socketserver's default listen backlog is 5. A page loading its module graph, fonts and sprites opens
+    # connections in a burst, and with a backlog of 5 a burst of 8 already lost about one request in ten
+    # (measured: 6 of 64; 105 of 240 at a burst of 30). A dropped request stalls or fails the page load.
+    request_queue_size = 128
 
 
 def make_server(directory, port=0, verbose=False):

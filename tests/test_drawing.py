@@ -436,7 +436,8 @@ def test_a_pause_lets_go_of_the_pointer_so_the_next_touch_starts_fresh(open_page
 
 def test_drawing_works_in_the_drive_theme_too(open_page):
     page = open_page(viewport={'width': 1280, 'height': 800})
-    page.click('#driveButton')
+    page.keyboard.press('t')                                          # Flight -> Drive, the way a player switches on a keyboard
+    assert page.evaluate('__pp.renderer.theme') == 'drive'
     start(page)
     press(page, 40, 1)
     move(page, 40, 30, steps=4)

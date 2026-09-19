@@ -62,12 +62,15 @@ export class View {
      browser bar sliding away) cannot make a route jump; it is applied on thaw(). */
   measure() {
     if (this.frozen) { this._pending = true; return false; }
-    const w = this.stage.clientWidth, h = this.stage.clientHeight;
-    if (w < 2 || h < 2) return false;                   // hidden or not laid out yet
+    const style = getComputedStyle(this.stage);
+    const w = this.stage.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+    const h = this.stage.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
+    if (!(w >= 2 && h >= 2)) return false;              // hidden or not laid out yet
     const fit = computeFit(w, h, window.devicePixelRatio || 1);
     const old = this.fit;
     if (old && old.pxW === fit.pxW && old.pxH === fit.pxH && old.rotated === fit.rotated && old.cssW === fit.cssW && old.cssH === fit.cssH) return false;
     this.fit = fit;
+    document.documentElement.style.setProperty('--board-w', `${fit.cssW}px`);    // the desktop HUD lines up with the board's edges
     const { canvas } = this;
     canvas.style.width = `${fit.cssW}px`;
     canvas.style.height = `${fit.cssH}px`;

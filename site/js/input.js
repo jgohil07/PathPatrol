@@ -9,13 +9,15 @@
    - the view is frozen while a pointer is down, so a resize cannot make the route jump
 
    Shortcuts ignore any chord with Cmd, Ctrl or Alt (the prototype paused on Cmd+P and switched theme
-   on Ctrl+F), and anything typed into a form control. */
+   on Ctrl+F), anything typed into a form control, and everything while a dialog is open: the dialog owns
+   the keyboard, and P or R R must not act on the game behind it. */
 import { PHASE } from './game.js';
 
 const SNAP_FINE_PX = 10;        // a mouse or pen may start this far (CSS px) from safe ground and be pulled onto it
 const SNAP_COARSE_PX = 22;      // a finger is less precise
 
 const FORM_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT']);
+const CONTROL_SELECTOR = 'button, a[href], summary, [role="switch"], [role="radio"]';
 const RESTART_WINDOW_MS = 1500;
 
 export function installPointer({ canvas, view, game }) {
@@ -81,6 +83,7 @@ export function installKeyboard({ game, ui }) {
     if (event.defaultPrevented || event.isComposing || event.metaKey || event.ctrlKey || event.altKey) return;
     const target = event.target;
     if (target && (target.isContentEditable || FORM_TAGS.has(target.tagName))) return;
+    if (ui.isModalOpen()) return;
     const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
 
     switch (key) {
@@ -96,6 +99,16 @@ export function installKeyboard({ game, ui }) {
       case 't':
         if (!event.repeat) ui.toggleTheme();
         break;
+      case 'h':
+      case '?':
+        if (!event.repeat) ui.openHelp();
+        break;
+      case 'Enter':
+      case ' ':
+        // A focused button, link or switch handles Enter and Space itself; doing it here too would act twice.
+        if (event.repeat || (target && target.closest && target.closest(CONTROL_SELECTOR))) break;
+        if (ui.confirm()) event.preventDefault();
+        break;
       case 'r':
         if (event.repeat) break;
         if (performance.now() - restartArmedAt < RESTART_WINDOW_MS) { restartArmedAt = -Infinity; game.restartLevel(); }
@@ -104,4 +117,17 @@ export function installKeyboard({ game, ui }) {
       default:
     }
   });
+}
+
+/* html[data-input] follows the pointer actually being used, so a laptop with a touch screen (or an iPad
+   with a trackpad) switches between the touch and mouse presentation as the player switches. Touch is
+   the only "touch"; a pen is precise, so it counts as a mouse. The CSS uses it for control sizes and
+   keyboard hints; it never changes where the board is, so a touch cannot land on a board that then moves. */
+export function installInputMode(root = document.documentElement) {
+  const follow = (event) => {
+    const mode = event.pointerType === 'touch' ? 'touch' : 'mouse';
+    if (root.dataset.input !== mode) root.dataset.input = mode;
+  };
+  window.addEventListener('pointerdown', follow, { capture: true, passive: true });
+  window.addEventListener('pointermove', follow, { capture: true, passive: true });
 }
