@@ -233,10 +233,11 @@ def test_changes_are_announced_once_through_one_live_region(open_page):
     page.evaluate('__pp.game.loseLife()')
     assert heard() == '2 lives left. Route intercepted — try again'                # raised in one tick, read as one sentence
     page.evaluate('__pp.cutLine("v", 40)')
-    assert re.fullmatch(r'\d+\.\d percent cleared', heard())
+    assert re.fullmatch(r'\d+\.\d percent cleared, [\d,]+ points', heard())
     for _ in range(2):
         page.evaluate('__pp.game.loseLife()')
-    assert re.fullmatch(r'0 lives left\. Run over\. Level 1, \d+\.\d percent cleared', heard())      # one sentence, not three reads
+    # one sentence, not three reads; a fresh profile's first score is always a new best
+    assert re.fullmatch(r'0 lives left\. Run over\. [\d,]+ points, level 1, a new best score', heard())
 
 
 def test_the_same_announcement_twice_in_a_row_is_still_spoken(open_page):
@@ -279,10 +280,10 @@ def test_a_narrow_window_with_a_mouse_never_overflows_the_top_bar(open_page):
 def test_the_title_reports_records_and_says_so_when_there_are_none(open_page):
     page = open_page()
     assert page.locator('#titleRecords').text_content() == '> no runs yet'
-    seed_and_reload(page, {'v': 2, 'settings': {}, 'records': {'bestClear': 61.5, 'bestLevel': 4, 'runs': 9, 'wins': 3}})
-    assert page.locator('#titleRecords').text_content() == '> best 61.5% · top level 04 · 9 runs'
+    seed_and_reload(page, {'v': 2, 'settings': {}, 'records': {'bestScore': 12480, 'bestClear': 61.5, 'bestLevel': 4, 'runs': 9, 'wins': 3}})
+    assert page.locator('#titleRecords').text_content() == '> best 12,480 · clear 61.5% · top level 04 · 9 runs'
     seed_and_reload(page, {'v': 2, 'settings': {}, 'records': {'bestClear': 12, 'bestLevel': 0, 'runs': 1, 'wins': 0}})
-    assert page.locator('#titleRecords').text_content() == '> best 12.0% · 1 run'
+    assert page.locator('#titleRecords').text_content() == '> clear 12.0% · 1 run'                    # only what exists is listed
 
 
 def test_blocked_storage_is_said_on_the_title_for_every_device(open_page):

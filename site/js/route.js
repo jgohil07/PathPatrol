@@ -14,7 +14,7 @@
 
    A route closes when the pointer re-enters safe ground: its cells become wall and the game claims every
    area without a patrol in it. Lifting mid-field, a pointer cancel or a pause erases the route for free. */
-import { CELLS_PER_UNIT as S, BOARD_W, BOARD_H } from './config.js';
+import { CELLS_PER_UNIT as S, BOARD_W, BOARD_H, SCORE } from './config.js';
 import { FIELD, ROUTE, toCell, cellDistanceSq, walkCells } from './grid.js';
 
 export const MODE = Object.freeze({ IDLE: 'idle', ARMED: 'armed', DRAWING: 'drawing', SPENT: 'spent' });
@@ -65,6 +65,7 @@ export class RouteEngine {
     this.points = [];                     // flat [x, y, ...] polyline of the route so far, board units
     this.anchor = { cx: 0, cy: 0 };       // the safe cell the route grows from / the pointer slides along
     this.tip = { x: 0, y: 0 };            // where the pointer is now, board units
+    this.closeCalls = new Set();          // patrols that came within SCORE.closeCall.distance of this route without hitting it; emptied when a route starts
     this._last = { x: 0, y: 0 };          // the previous sample: the walk between samples starts here
     game.on('phase', ({ phase }) => { if (phase !== 'playing') this.cancel('phase'); });
     game.on('level', () => this._forget());
@@ -119,12 +120,20 @@ export class RouteEngine {
     this.mode = MODE.IDLE;
   }
 
-  /* Called by the game after every physics step: a patrol may have flown into the route. */
+  /* Called by the game after every physics step: a patrol may have flown into the route, or just missed it.
+     A miss is remembered once per patrol per route and paid out only if the route closes (see _close), so
+     drawing near a patrol and lifting again is not a way to farm points. */
   afterStep() {
     if (this.mode !== MODE.DRAWING) return;
     const { grid, level } = this.game;
-    for (const p of level.patrols) {
+    const near = SCORE.closeCall.distance;
+    for (let i = 0; i < level.patrols.length; i++) {
+      const p = level.patrols[i];
       if (grid.circleHitsRoute(p.x, p.y, p.r)) { this._hit(); return; }
+      if (!this.closeCalls.has(i) && grid.circleHitsRoute(p.x, p.y, near)) {
+        this.closeCalls.add(i);
+        this.game.emit('route', { type: 'closecall', patrol: i });
+      }
     }
   }
 
@@ -161,6 +170,7 @@ export class RouteEngine {
     this.mode = MODE.DRAWING;
     this.cells.length = 0;
     this.points.length = 0;
+    this.closeCalls.clear();
     this.points.push((this.anchor.cx + 0.5) / S, (this.anchor.cy + 0.5) / S);
     this.game.emit('route', { type: 'start' });
   }
@@ -187,10 +197,11 @@ export class RouteEngine {
     const cells = this.cells;
     const path = this.points.slice();
     path.push((cx + 0.5) / S, (cy + 0.5) / S);
+    const closeCalls = this.closeCalls.size;
     this.cells = [];
     this.points = [];
     this._arm(cx, cy);                                        // the pointer keeps sliding from where it landed
-    this.game.commitCapture(cells, { polyline: simplify(path, SIMPLIFY_TOLERANCE) });
+    this.game.commitCapture(cells, { polyline: simplify(path, SIMPLIFY_TOLERANCE), closeCalls });
     return !this.game.isPlaying();                            // the capture may have won the level
   }
 

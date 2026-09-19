@@ -4,7 +4,7 @@
    Every delayed action goes through the Scheduler below, which only advances while the game is
    actually running, so pausing freezes it and restarting cancels it. The prototype used setTimeout and
    paid for it: a restarted level could "win itself" and a pause could be overridden. */
-import { START_LIVES, LEVEL_CLEAR_DELAY, RESUME_COUNTDOWN, CELLS_PER_UNIT, levelInfo } from './config.js';
+import { START_LIVES, MAX_LIVES, LEVEL_CLEAR_DELAY, CLEAR_SKIP_AFTER, RESUME_COUNTDOWN, CELLS_PER_UNIT, SCORE, levelInfo } from './config.js';
 import { Grid, FIELD, WALL, ROUTE, toCell } from './grid.js';
 import { buildLevel } from './level.js';
 import { advance, settle } from './physics.js';
@@ -61,6 +61,10 @@ export class Scheduler {
 
 const pad2 = (n) => String(n).padStart(2, '0');
 
+/* Why a route was erased. Only these are the player abandoning it (a lift, a cancelled touch, Backspace) and
+   break the combo; a pause, a restart or a jitter-sized route are not. */
+const COMBO_BREAKERS = new Set(['lift', 'cancel', 'backspace']);
+
 export class Game extends Emitter {
   constructor({ storage }) {
     super();
@@ -71,11 +75,14 @@ export class Game extends Emitter {
     this.pausedFrom = null;
     this.pauseReason = null;
     this.countdown = 0;
-    this.level = null;         // { number, info, obstacles, initialPlayable, patrols, cleared }
-    this.run = null;           // { seed, mode, lives }
+    this.level = null;         // { number, info, obstacles, initialPlayable, patrols, cleared, scoreAtStart, statsAtStart }
+    this.run = null;           // { seed, mode, lives, score, combo, nextLifeAt, stats, best0 }
     this.flash = 0;            // seconds left of the red "life lost" flash
     this.report = null;        // summary of the run that just ended
+    this.tally = null;         // the level-clear breakdown while the win screen shows
+    this._clearAt = 0;         // game-clock time the win screen appeared
     this.route = new RouteEngine(this);
+    this.on('route', (event) => this._onRoute(event));
   }
 
   toast(text, ms = 1200) { this.emit('toast', { text, ms }); }
@@ -105,25 +112,46 @@ export class Game extends Emitter {
   }
 
   newRun({ mode = 'normal', seed = randomSeed() } = {}) {
-    this.run = { seed, mode, lives: START_LIVES };
+    const records = this.storage.records;
+    this.run = {
+      seed, mode, lives: START_LIVES, score: 0, combo: 1, nextLifeAt: SCORE.extraLifeEvery,
+      stats: { captures: 0, closeCalls: 0, levelsCleared: 0 },
+      best0: { score: records.bestScore, clear: records.bestClear, level: records.bestLevel },   // for the "new best" flags
+    };
     this.report = null;
+    this.tally = null;
     this.storage.updateRecords((r) => { r.runs++; });
     this.startLevel(1);
   }
 
+  /* A level is (re)started: remember where the score and stats stood, and begin at x1. */
+  _markLevelStart() {
+    this.level.scoreAtStart = this.run.score;
+    this.level.statsAtStart = { ...this.run.stats };
+    this.run.combo = 1;
+  }
+
   startLevel(number) {
     this._build(number, this.run.seed);
+    this._markLevelStart();
+    this.tally = null;
     this._setPhase(PHASE.PLAYING);
     this.toast(`Level ${pad2(number)} · clear ${this.level.info.target}%`, 1400);
     this.emit('levelStart', { level: number, target: this.level.info.target, lives: this.run.lives });
     this.emit('hud');
   }
 
-  /* Same layout, same lives. Not available on game over (that is what New run is for). */
+  /* Same layout, same lives. The attempt's points are forgotten, so a restart cannot bank score; the life
+     threshold is left where it is, so it cannot earn the same extra life twice. Not available on game over
+     (that is what New run is for). */
   restartLevel() {
     const ok = this.phase === PHASE.PLAYING || this.phase === PHASE.PAUSED || this.phase === PHASE.COUNTDOWN;
     if (!ok || !this.run || this.run.mode === 'daily') return false;
+    const { scoreAtStart, statsAtStart } = this.level;
     this._build(this.level.number, this.run.seed);
+    this.run.score = scoreAtStart;
+    this.run.stats = { ...statsAtStart };
+    this._markLevelStart();
     this._setPhase(PHASE.PLAYING);
     this.toast('Level restarted', 900);
     this.emit('levelStart', { level: this.level.number, target: this.level.info.target, lives: this.run.lives, restarted: true });
@@ -165,6 +193,7 @@ export class Game extends Emitter {
   loseLife() {
     if (this.phase !== PHASE.PLAYING) return;
     this.run.lives--;
+    this.run.combo = 1;
     this.flash = 0.34;
     this.emit('life', { lives: this.run.lives });
     this.emit('hud');
@@ -173,7 +202,17 @@ export class Game extends Emitter {
   }
 
   _gameOver() {
-    this.report = { level: this.level.number, cleared: this.level.cleared, mode: this.run.mode };
+    const { run, level } = this;
+    const records = this.storage.records;
+    this.report = {
+      level: level.number, cleared: level.cleared, mode: run.mode,
+      score: run.score, stats: { ...run.stats },
+      newBest: {                                         // against the records as they stood when the run began
+        score: run.score > run.best0.score,
+        clear: records.bestClear > run.best0.clear,
+        level: records.bestLevel > run.best0.level,
+      },
+    };
     this.flash = 0;                        // the game-over card replaces the flash; nothing left to animate
     this._setPhase(PHASE.OVER);
     this.emit('over', this.report);
@@ -187,10 +226,52 @@ export class Game extends Emitter {
 
   /* --- captures --------------------------------------------------------------------------- */
 
+  /* The route engine reports every erased route; abandoning one costs the combo. */
+  _onRoute(event) {
+    if (this.run && event.type === 'cancel' && COMBO_BREAKERS.has(event.reason) && this.run.combo > 1) {
+      this.run.combo = 1;
+      this.emit('combo', { combo: 1, broken: true });
+      this.emit('hud');
+    }
+  }
+
+  /* Points are banked here and nowhere else, so a route that is cancelled or hit never scores. Returns the
+     breakdown for the popup and the announcer. */
+  _scoreCapture(run, gained, closeCalls) {
+    const { level } = this;
+    const units = ((gained / 100) * level.initialPlayable) / (CELLS_PER_UNIT * CELLS_PER_UNIT);
+    const combo = run.combo;
+    const size = gained >= SCORE.bigCapture.percent ? SCORE.bigCapture.multiplier : 1;
+    const capturePoints = Math.round(units * combo * size);
+    const closePoints = Math.round(closeCalls * SCORE.closeCall.points * combo);
+    run.stats.captures++;
+    run.stats.closeCalls += closeCalls;
+    if (gained >= SCORE.combo.minGain) run.combo = Math.min(SCORE.combo.max, combo + SCORE.combo.step);
+    return { combo, nextCombo: run.combo, capturePoints, closePoints, points: capturePoints + closePoints };
+  }
+
+  /* Adds points, keeps the best score, and grants an extra life at every threshold (none beyond MAX_LIVES,
+     but the threshold still moves on). */
+  _addScore(points) {
+    const { run } = this;
+    if (!run || points <= 0) return;
+    run.score += points;
+    this.storage.updateRecords((r) => { r.bestScore = Math.max(r.bestScore, run.score); });
+    while (run.score >= run.nextLifeAt) {
+      run.nextLifeAt += SCORE.extraLifeEvery;
+      if (run.lives < MAX_LIVES) {
+        run.lives++;
+        this.emit('extraLife', { lives: run.lives });
+        this.toast(`Extra life · ${run.lives} ${run.lives === 1 ? 'life' : 'lives'}`, 1400);      // spoken once, by the announcer, through the toast
+      }
+    }
+  }
+
   /* Called by the route engine when a route is closed. The route's cells become wall and every open
      area with no patrol in it is claimed. `routeCells` are grid indices; `polyline` (flat x, y, ...) is
-     kept so the finished route can be drawn as a runway or road. */
-  commitCapture(routeCells, { polyline } = {}) {
+     kept so the finished route can be drawn as a runway or road; `closeCalls` is how many patrols just
+     missed it. */
+  commitCapture(routeCells, { polyline, closeCalls = 0 } = {}) {
     if (this.phase !== PHASE.PLAYING) return null;
     const { grid, level } = this;
     for (const i of routeCells) {
@@ -204,11 +285,14 @@ export class Game extends Emitter {
     const previous = level.cleared;
     if (polyline) level.routes.push(polyline);
     level.cleared = ((level.initialPlayable - after) / level.initialPlayable) * 100;
-    const result = { percent: level.cleared, gained: level.cleared - previous, cellsClaimed: before - after };
+    const gained = level.cleared - previous;
+    const result = { percent: level.cleared, gained, cellsClaimed: before - after, points: 0, capturePoints: 0, closePoints: 0, closeCalls, combo: 1, nextCombo: 1 };
+    if (this.run) Object.assign(result, this._scoreCapture(this.run, gained, closeCalls));
     this.storage.updateRecords((r) => { r.bestClear = Math.max(r.bestClear, level.cleared); });
     this.emit('capture', result);
+    this._addScore(result.points);
     this.emit('hud');
-    if (level.cleared >= level.info.target) this._levelWon();
+    if (this.run && level.cleared >= level.info.target) this._levelWon();
     return result;
   }
 
@@ -230,12 +314,41 @@ export class Game extends Emitter {
     return seeds;
   }
 
+  /* The win screen: what the level's captures scored, then bonuses for finishing above the target, for the
+     lives still held and for finishing quickly (game-clock seconds, so a pause does not count). */
   _levelWon() {
-    const number = this.level.number;
+    const { level, run } = this;
+    const number = level.number;
+    const c = SCORE.clear;
+    const seconds = this.clock.now;
+    const overshoot = Math.max(0, level.cleared - level.info.target);
+    const tally = {
+      level: number, cleared: level.cleared, target: level.info.target,
+      capturePoints: run.score - level.scoreAtStart,
+      overshoot, overshootBonus: Math.round(overshoot * c.overshootPerPercent),
+      lives: run.lives, livesBonus: run.lives * c.perLife,
+      seconds, timeBonus: Math.max(0, Math.round((c.timePar - seconds) * c.perSecond)),
+    };
+    tally.bonus = tally.overshootBonus + tally.livesBonus + tally.timeBonus;
+    tally.total = tally.capturePoints + tally.bonus;
+    run.stats.levelsCleared++;
+    this._addScore(tally.bonus);
+    this.tally = tally;
     this._setPhase(PHASE.CLEAR);
     this.storage.updateRecords((r) => { r.wins++; r.bestLevel = Math.max(r.bestLevel, number); });
-    this.emit('clear', { level: number });
+    this._clearAt = this.clock.now;
     this.clock.after(LEVEL_CLEAR_DELAY, () => this.startLevel(number + 1));
+    this.emit('clear', tally);
+    this.emit('hud');
+  }
+
+  /* A tap, Enter or the Next button on the win screen moves on at once, but not within CLEAR_SKIP_AFTER of
+     the win: the tap that closed the winning route must not skip the tally nobody has seen yet. */
+  skipClear() {
+    if (this.phase !== PHASE.CLEAR) return false;
+    if (this.clock.now - this._clearAt < CLEAR_SKIP_AFTER) return false;
+    this.startLevel(this.level.number + 1);                     // building the level resets the clock, which drops the automatic advance
+    return true;
   }
 
   /* --- time ------------------------------------------------------------------------------- */
@@ -287,6 +400,8 @@ export class Game extends Emitter {
     return {
       level: level ? level.number : 1,
       lives: this.run ? this.run.lives : START_LIVES,
+      score: this.run ? this.run.score : 0,
+      combo: this.run ? this.run.combo : 1,
       target: level ? level.info.target : first.target,
       cleared: level ? level.cleared : 0,
       patrols: level ? level.patrols.length : first.patrols,

@@ -150,13 +150,13 @@ def test_storage_defaults_and_round_trip(page):
       const a = createStorage(backend);
       const defaults = { settings: { ...a.settings }, records: { ...a.records }, persistent: a.persistent };
       a.updateSettings({ theme: 'drive', sound: false, motion: 'reduced', showFps: true });
-      a.updateRecords((r) => { r.runs = 4; r.bestClear = 61.5; });
+      a.updateRecords((r) => { r.runs = 4; r.bestClear = 61.5; r.bestScore = 12480; });
       const b = createStorage(backend);
       return { defaults, settings: { ...b.settings }, records: { ...b.records }, keys: [...backend.map.keys()] }; }""")
     assert got['defaults'] == {'settings': {'sound': True, 'theme': 'flight', 'motion': 'auto', 'showFps': False},
-                               'records': {'bestClear': 0, 'bestLevel': 0, 'runs': 0, 'wins': 0}, 'persistent': True}
+                               'records': {'bestScore': 0, 'bestClear': 0, 'bestLevel': 0, 'runs': 0, 'wins': 0}, 'persistent': True}
     assert got['settings'] == {'sound': False, 'theme': 'drive', 'motion': 'reduced', 'showFps': True}
-    assert got['records'] == {'bestClear': 61.5, 'bestLevel': 0, 'runs': 4, 'wins': 0}
+    assert got['records'] == {'bestScore': 12480, 'bestClear': 61.5, 'bestLevel': 0, 'runs': 4, 'wins': 0}
     assert got['keys'] == ['pathpatrol:v2']
 
 
@@ -169,7 +169,7 @@ def test_storage_migrates_the_prototype_records(page):
       s.updateSettings({});                                   // any write creates the v2 key
       return { before, keys: [...backend.map.keys()].sort(), legacyIntact: backend.map.get('color-divide-records-v1') === legacy }; }""")
     assert got['before'] == {'settings': {'sound': True, 'theme': 'drive', 'motion': 'auto', 'showFps': False},
-                             'records': {'bestClear': 55.5, 'bestLevel': 4, 'runs': 9, 'wins': 3}}
+                             'records': {'bestScore': 0, 'bestClear': 55.5, 'bestLevel': 4, 'runs': 9, 'wins': 3}}       # the prototype kept no score
     assert got['keys'] == ['color-divide-records-v1', 'pathpatrol:v2']
     assert got['legacyIntact']
 
@@ -180,14 +180,14 @@ def test_storage_survives_garbage(page):
       results.notJson = (() => { const s = createStorage(backendOf({ 'pathpatrol:v2': '{nope' })); return { ...s.records }; })();
       results.legacyGarbage = (() => { const s = createStorage(backendOf({ 'color-divide-records-v1': 'also nope' })); return { ...s.records }; })();
       results.wrongTypes = (() => {
-        const blob = { v: 2, settings: { sound: 'yes', theme: 'neon', motion: 'sideways', showFps: 'yes' }, records: { bestClear: -5, bestLevel: '7', runs: 3, wins: null, extra: 1 } };
+        const blob = { v: 2, settings: { sound: 'yes', theme: 'neon', motion: 'sideways', showFps: 'yes' }, records: { bestScore: 'lots', bestClear: -5, bestLevel: '7', runs: 3, wins: null, extra: 1 } };
         const s = createStorage(backendOf({ 'pathpatrol:v2': JSON.stringify(blob) }));
         return { settings: { ...s.settings }, records: { ...s.records } }; })();
       return results; }""")
-    zero = {'bestClear': 0, 'bestLevel': 0, 'runs': 0, 'wins': 0}
+    zero = {'bestScore': 0, 'bestClear': 0, 'bestLevel': 0, 'runs': 0, 'wins': 0}
     assert got['notJson'] == zero and got['legacyGarbage'] == zero
     assert got['wrongTypes'] == {'settings': {'sound': True, 'theme': 'flight', 'motion': 'auto', 'showFps': False},
-                                 'records': {'bestClear': 0, 'bestLevel': 0, 'runs': 3, 'wins': 0}}
+                                 'records': {'bestScore': 0, 'bestClear': 0, 'bestLevel': 0, 'runs': 3, 'wins': 0}}
 
 
 def test_storage_that_throws_still_works_in_memory(page):
@@ -204,11 +204,11 @@ def test_reset_records_keeps_settings(page):
     got = page.evaluate("async () => {" + STORAGE_PRELUDE + """
       const s = createStorage(backendOf());
       s.updateSettings({ theme: 'drive', sound: false, motion: 'full', showFps: true });
-      s.updateRecords((r) => { r.runs = 7; r.wins = 2; r.bestLevel = 5; r.bestClear = 66; });
+      s.updateRecords((r) => { r.runs = 7; r.wins = 2; r.bestLevel = 5; r.bestClear = 66; r.bestScore = 9000; });
       s.resetRecords();
       return { settings: { ...s.settings }, records: { ...s.records } }; }""")
     assert got['settings'] == {'sound': False, 'theme': 'drive', 'motion': 'full', 'showFps': True}     # D9: the prototype dropped the theme here
-    assert got['records'] == {'bestClear': 0, 'bestLevel': 0, 'runs': 0, 'wins': 0}
+    assert got['records'] == {'bestScore': 0, 'bestClear': 0, 'bestLevel': 0, 'runs': 0, 'wins': 0}
 
 
 # ---- level -------------------------------------------------------------------------------------
@@ -337,23 +337,24 @@ def test_capture_claims_the_side_without_a_patrol(page):
 def test_win_banner_cannot_be_restarted_or_outlived_by_a_pause(page):
     """D5: the prototype's setTimeout-based win could be restarted into a phantom win, and could override a pause."""
     got = page.evaluate("async () => {" + GAME_PRELUDE + """
-      const out = {};
+      const out = {}; const { LEVEL_CLEAR_DELAY: D } = await import('/js/config.js');
       // a) restart is refused while the banner shows, so nothing stale can fire
       let { game, storage } = fresh(); game.newRun({ seed: 'w1' }); game.level.patrols.length = 0; game.commitCapture(rowCells(game, 36));
       out.a = { phase: game.phase, pending: game.clock.pending, restart: game.restartLevel(), phaseAfter: game.phase, wins: storage.records.wins };
-      run(game, 1.3); out.aNext = { phase: game.phase, level: game.level.number, wins: storage.records.wins, cleared: game.level.cleared };
+      run(game, D - 0.1); out.aEarly = game.phase; run(game, 0.2);              // just before the delay it is still the win screen
+      out.aNext = { phase: game.phase, level: game.level.number, wins: storage.records.wins, cleared: game.level.cleared };
       // b) a pause freezes the win timer; resuming continues it
       ({ game, storage } = fresh()); game.newRun({ seed: 'w2' }); game.level.patrols.length = 0; game.commitCapture(rowCells(game, 36));
       out.bPause = game.pause('manual'); const frozenAt = game.clock.now; run(game, 3);
       out.b = { phase: game.phase, level: game.level.number, clockMoved: game.clock.now !== frozenAt, pending: game.clock.pending };
-      game.resume(); out.bResumed = game.phase; run(game, 1.3); out.bNext = { phase: game.phase, level: game.level.number };
+      game.resume(); out.bResumed = game.phase; run(game, D + 0.05); out.bNext = { phase: game.phase, level: game.level.number };
       // c) restarting a normal level resets the clock, so a task from the old level can never fire
       ({ game, storage } = fresh()); game.newRun({ seed: 'w3' }); game.clock.after(0.5, () => { game.__stale = true; });
       game.restartLevel(); run(game, 1); out.c = { stale: !!game.__stale, pending: game.clock.pending, phase: game.phase };
       return out; }""")
     assert got['a']['phase'] == 'clear' and got['a']['pending'] == 1 and got['a']['restart'] is False
     assert got['a']['phaseAfter'] == 'clear' and got['a']['wins'] == 1
-    assert got['aNext'] == {'phase': 'playing', 'level': 2, 'wins': 1, 'cleared': 0}
+    assert got['aEarly'] == 'clear' and got['aNext'] == {'phase': 'playing', 'level': 2, 'wins': 1, 'cleared': 0}
     assert got['bPause'] is True and got['b'] == {'phase': 'paused', 'level': 1, 'clockMoved': False, 'pending': 1}
     assert got['bResumed'] == 'clear' and got['bNext'] == {'phase': 'playing', 'level': 2}
     assert got['c'] == {'stale': False, 'pending': 0, 'phase': 'playing'}

@@ -20,8 +20,19 @@ export const MAX_STEPS_PER_FRAME = 8;          // beyond this a slow frame drops
 
 export const START_LIVES = 3;
 export const MAX_LIVES = 5;
-export const LEVEL_CLEAR_DELAY = 1.25;         // game-clock seconds between a win and the next level
+export const LEVEL_CLEAR_DELAY = 3.4;          // game-clock seconds the tally shows before the next level starts by itself
+export const CLEAR_SKIP_AFTER = 0.6;           // ...and how long before a tap may skip it (the tap that closed the route must not)
 export const RESUME_COUNTDOWN = 3;             // real seconds after an automatic pause
+
+/* Scoring. Points are counted in board units squared (a grid cell is a quarter of one), so the numbers mean
+   the same whatever the grid resolution. Starting values; tuned in Phase 5.6. */
+export const SCORE = Object.freeze({
+  combo: { step: 0.25, max: 3, minGain: 0.5 },          // +step per capture of at least minGain percentage points; resets on a cancel or a hit
+  bigCapture: { percent: 10, multiplier: 1.5 },         // a single capture this large is worth half as much again
+  closeCall: { points: 250, distance: 3.5 },            // a patrol this close (units) to the live route, banked when the route closes
+  clear: { overshootPerPercent: 100, perLife: 500, timePar: 75, perSecond: 10 },
+  extraLifeEvery: 25000,
+});
 
 export const STORAGE_KEY = 'pathpatrol:v2';
 export const LEGACY_KEY = 'color-divide-records-v1';

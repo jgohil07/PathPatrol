@@ -54,6 +54,11 @@ MEASURE = """() => {
 }"""
 
 
+def settle(page):
+    """Let a change to the page reach the layout: the resize observer runs before the next paint, so two frames."""
+    page.evaluate('new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))')
+
+
 def check(m, touch, label):
     tap = 44 if touch else 36
     where = f'[{label}]'
@@ -97,6 +102,11 @@ def test_every_screen_size_lays_out_cleanly(open_page, engine, name, width, heig
     page.evaluate('__pp.setPatrols([{ x: 100, y: 60, vx: 6, vy: 4 }]); __pp.cutLine("v", 40)')     # some claimed ground to look at
     check(page.evaluate(MEASURE), touch, f'{name} playing')
     shot('2-playing')
+    # The widest the HUD gets: a seven-digit score, the top combo, and all five lives.
+    page.evaluate('__pp.game.run.score = 1234567; __pp.game.run.combo = 3; __pp.game.run.lives = 5; __pp.game.emit("hud")')
+    settle(page)
+    check(page.evaluate(MEASURE), touch, f'{name} playing, widest HUD')
+    shot('2b-widest-hud')
 
     # Each screen is asserted to really be the one meant: a check that ran on the wrong screen would pass silently.
     page.keyboard.press('p')
@@ -116,7 +126,14 @@ def test_every_screen_size_lays_out_cleanly(open_page, engine, name, width, heig
     page.keyboard.press('p')
     assert page.evaluate('__pp.state().phase') == 'playing'
 
-    for _ in range(3):
+    page.evaluate('__pp.forceWin()')                                          # the level-clear tally
+    assert page.evaluate('__pp.state().phase') == 'clear' and page.locator('#clearOverlay').is_visible()
+    check(page.evaluate(MEASURE), touch, f'{name} level clear')
+    shot('4b-clear')
+    page.evaluate('__pp.game.startLevel(2)')                                  # straight on, without waiting for the tally to time out
+    assert page.evaluate('__pp.state().phase') == 'playing'
+
+    for _ in range(5):
         page.evaluate('__pp.game.loseLife()')
     assert page.evaluate('__pp.state().phase') == 'over' and page.locator('#endOverlay').is_visible()
     check(page.evaluate(MEASURE), touch, f'{name} game over')

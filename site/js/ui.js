@@ -9,7 +9,8 @@ import { PHASE } from './game.js';
 const IDS = [
   'app', 'startButton', 'againButton', 'reloadButton', 'pauseButton', 'resumeButton', 'restartButton',
   'pauseRestartButton', 'soundButton', 'helpButton', 'settingsButton',
-  'levelLabel', 'lives', 'areaLabel', 'targetLabel', 'progressFill', 'targetMarker', 'runnerLabel', 'toast',
+  'levelLabel', 'lives', 'areaLabel', 'targetLabel', 'progressFill', 'targetMarker', 'runnerLabel', 'scoreLabel', 'comboLabel', 'toast',
+  'clearOverlay', 'clearEyebrow', 'clearTotal', 'tally', 'bestScore',
   'titleRecords', 'versionLabel', 'versionLine', 'pauseEyebrow', 'pauseTitle', 'receipt', 'endSummary',
   'crashDetail', 'fpsMeter', 'storageNote', 'announcer',
   'settingsDialog', 'helpDialog', 'soundSwitch', 'flightButton', 'driveButton', 'fpsSwitch',
@@ -22,6 +23,24 @@ const NBSP = '\u00a0';          // written as an escape: a literal no-break spac
 
 const pad2 = (n) => String(n).padStart(2, '0');
 const plural = (n, one, many) => (n === 1 ? one : many);
+const number = (n) => Math.round(n).toLocaleString('en-US');       // one format everywhere, whatever the browser's locale
+
+/* A two-column list of rows: [name, value] or [name, value, flag]. */
+function fillRows(list, rows) {
+  list.replaceChildren(...rows.flatMap(([name, value, flag]) => {
+    const dt = document.createElement('dt');
+    const dd = document.createElement('dd');
+    dt.textContent = name;
+    if (flag) {
+      const tag = document.createElement('b');
+      tag.className = 'flag';
+      tag.textContent = flag;
+      dd.append(tag);
+    }
+    dd.append(value);
+    return [dt, dd];
+  }));
+}
 
 function byId(id) {
   const node = document.getElementById(id);
@@ -79,6 +98,7 @@ export class UI {
     for (const button of this.motionButtons) click(button, () => this.setMotion(button.dataset.motion));
     click(el.fpsSwitch, () => this.setShowFps(!this.storage.settings.showFps));
     click(el.resetStatsButton, () => this.pressReset());
+    click(el.clearOverlay, () => game.skipClear());               // the Next button is inside it, so its click lands here too
 
     for (const dialog of [el.settingsDialog, el.helpDialog]) {
       dialog.addEventListener('click', (event) => {          // a click on the backdrop lands on the dialog itself
@@ -102,8 +122,8 @@ export class UI {
     game.on('route', (event) => { if (event.type === 'edge-hint') this.hintEdge(); });
     game.on('levelStart', ({ lives }) => this.announce(`${lives} ${plural(lives, 'life', 'lives')}`));
     game.on('life', ({ lives }) => this.announce(`${lives} ${plural(lives, 'life', 'lives')} left`));
-    game.on('capture', ({ percent }) => this.announce(`${percent.toFixed(1)} percent cleared`));
-    game.on('clear', ({ level }) => this.toast(`Level ${pad2(level)} cleared`, 1200));
+    game.on('capture', ({ percent, points }) => this.announce(`${percent.toFixed(1)} percent cleared${points ? `, ${number(points)} points` : ''}`));
+    game.on('clear', (tally) => this.renderTally(tally));
   }
 
   /* --- actions shared by buttons and keys ---------------------------------------------------- */
@@ -168,6 +188,8 @@ export class UI {
       case PHASE.COUNTDOWN:
         this.game.resume();
         return true;
+      case PHASE.CLEAR:
+        return this.game.skipClear();
       default:
         return false;
     }
@@ -238,6 +260,9 @@ export class UI {
     el.targetMarker.style.left = `${h.target}%`;
     const word = this.storage.settings.theme === 'flight' ? 'PLANE' : 'CAR';
     el.runnerLabel.textContent = `${h.patrols} ${word}${h.patrols === 1 ? '' : 'S'}`;
+    el.scoreLabel.textContent = number(h.score);
+    el.comboLabel.textContent = `x${h.combo.toFixed(2)}`;
+    el.comboLabel.classList.toggle('on', h.combo > 1);
 
     const total = Math.max(START_LIVES, h.lives);
     const key = `${total}:${h.lives}`;
@@ -256,6 +281,7 @@ export class UI {
   renderStats() {
     const { el, storage } = this;
     const r = storage.records;
+    el.bestScore.textContent = number(r.bestScore);
     el.bestClear.textContent = `${r.bestClear.toFixed(1)}%`;
     el.bestLevel.textContent = r.bestLevel ? pad2(r.bestLevel) : '—';
     el.runsPlayed.textContent = String(r.runs);
@@ -263,7 +289,14 @@ export class UI {
     el.storageNote.textContent = storage.persistent ? 'All progress stays on this device.' : "Storage is blocked here, so progress won't be saved.";
     if (!storage.persistent) el.titleRecords.textContent = "Storage is blocked here, so records won't be saved.";
     else if (!r.runs) el.titleRecords.textContent = '> no runs yet';
-    else el.titleRecords.textContent = `> best ${r.bestClear.toFixed(1)}%${r.bestLevel ? ` · top level ${pad2(r.bestLevel)}` : ''} · ${r.runs} ${plural(r.runs, 'run', 'runs')}`;
+    else {
+      const parts = [];
+      if (r.bestScore) parts.push(`best ${number(r.bestScore)}`);
+      if (r.bestClear) parts.push(`clear ${r.bestClear.toFixed(1)}%`);
+      if (r.bestLevel) parts.push(`top level ${pad2(r.bestLevel)}`);
+      parts.push(`${r.runs} ${plural(r.runs, 'run', 'runs')}`);
+      el.titleRecords.textContent = `> ${parts.join(' · ')}`;
+    }
   }
 
   renderTheme() {
@@ -334,21 +367,30 @@ export class UI {
 
   renderOver(report) {
     const { el, storage } = this;
-    const rows = [
+    const best = report.newBest;
+    fillRows(el.receipt, [
+      ['Score', number(report.score), best.score ? 'NEW BEST' : ''],
       ['Level reached', pad2(report.level)],
-      ['Area cleared', `${report.cleared.toFixed(1)}%`],
-      ['Best clear', `${storage.records.bestClear.toFixed(1)}%`],
-      ['Highest level cleared', storage.records.bestLevel ? pad2(storage.records.bestLevel) : '—'],
-    ];
-    el.receipt.replaceChildren(...rows.flatMap(([name, value]) => {
-      const dt = document.createElement('dt');
-      const dd = document.createElement('dd');
-      dt.textContent = name;
-      dd.textContent = value;
-      return [dt, dd];
-    }));
-    el.endSummary.textContent = 'Start fresh and find a cleaner line.';
-    this.announce(`Run over. Level ${report.level}, ${report.cleared.toFixed(1)} percent cleared`);
+      ['Best clear', `${storage.records.bestClear.toFixed(1)}%`, best.clear ? 'NEW BEST' : ''],
+      ['Captures', String(report.stats.captures)],
+      ['Close calls', String(report.stats.closeCalls)],
+    ]);
+    el.endSummary.textContent = best.score ? 'A new high score. Go again?' : 'Start fresh and find a cleaner line.';
+    this.announce(`Run over. ${number(report.score)} points, level ${report.level}${best.score ? ', a new best score' : ''}`);
+  }
+
+  /* The win screen: what the level's captures scored, then each bonus. */
+  renderTally(t) {
+    const { el } = this;
+    el.clearEyebrow.textContent = `Level ${pad2(t.level)} cleared`;
+    el.clearTotal.textContent = `+${number(t.total)}`;
+    fillRows(el.tally, [
+      ['Captures', `+${number(t.capturePoints)}`],
+      [`Overshoot ${t.overshoot.toFixed(1)}%`, `+${number(t.overshootBonus)}`],
+      [`Lives x${t.lives}`, `+${number(t.livesBonus)}`],
+      [`Time ${Math.round(t.seconds)} s`, `+${number(t.timeBonus)}`],
+    ]);
+    this.announce(`Level ${t.level} cleared. ${number(t.total)} points`);
   }
 
   /* The details are for developers (?debug=1); a player only sees "Something broke". WebKit's stack

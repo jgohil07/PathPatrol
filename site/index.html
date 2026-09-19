@@ -64,6 +64,10 @@
             <span class="stat-target"><span class="chevron" aria-hidden="true"></span><span id="targetLabel">65%</span></span>
             <div class="meter" aria-hidden="true"><i id="progressFill"></i><b id="targetMarker"></b></div>
           </div>
+          <div class="stat stat--score">
+            <span class="stat-key">SCORE</span>
+            <span class="score-block"><strong class="stat-val" id="scoreLabel">0</strong><span class="combo" id="comboLabel" title="Combo multiplier">x1.00</span></span>
+          </div>
           <div class="stat stat--runners"><span class="stat-val" id="runnerLabel">1 PLANE</span></div>
         </section>
 
@@ -95,6 +99,15 @@
                 <button type="button" class="btn btn--primary btn--big" id="resumeButton"><svg class="icon" aria-hidden="true"><use href="#i-play" /></svg>Resume</button>
                 <button type="button" class="btn" id="pauseRestartButton"><svg class="icon" aria-hidden="true"><use href="#i-restart" /></svg>Restart level</button>
               </div>
+            </div>
+          </div>
+
+          <div class="overlay overlay--clear" id="clearOverlay">
+            <div class="panel">
+              <span class="eyebrow" id="clearEyebrow">Level cleared</span>
+              <strong class="big" id="clearTotal">+0</strong>
+              <dl class="receipt" id="tally"></dl>
+              <div class="cta"><button type="button" class="btn btn--primary btn--big" id="nextButton">Next level<svg class="icon" aria-hidden="true"><use href="#i-arrow" /></svg></button></div>
             </div>
           </div>
 
@@ -158,6 +171,7 @@
         </div>
         <h3 class="dialog-sub">Records on this device</h3>
         <dl class="records-list">
+          <div><dt>Best score</dt><dd id="bestScore">0</dd></div>
           <div><dt>Best clear</dt><dd id="bestClear">0.0%</dd></div>
           <div><dt>Highest level cleared</dt><dd id="bestLevel">—</dd></div>
           <div><dt>Runs played</dt><dd id="runsPlayed">0</dd></div>

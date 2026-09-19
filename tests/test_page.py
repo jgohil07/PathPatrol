@@ -103,7 +103,7 @@ def test_d4_game_over_offers_a_fresh_run_not_a_restart(open_page):
     assert state(page)['phase'] == 'over'
     assert page.locator('#endOverlay').is_visible()
     receipt = page.evaluate("Object.fromEntries([...document.querySelectorAll('#receipt dt')].map((dt) => [dt.textContent, dt.nextElementSibling.textContent]))")
-    assert receipt['Level reached'] == '01' and receipt['Area cleared'] == '0.0%'
+    assert receipt['Level reached'] == '01' and receipt['Score'] == '0' and receipt['Captures'] == '0'
     assert page.locator('#restartButton').is_disabled() and page.locator('#pauseButton').is_disabled()
     page.click('#againButton')
     st = state(page)
@@ -177,7 +177,7 @@ def test_d15_reset_needs_two_taps_and_keeps_the_theme(open_page):
     page.click('#resetStatsButton')                        # second tap within the window resets
     assert page.locator('#runsPlayed').inner_text() == '0' and page.locator('#bestClear').inner_text() == '0.0%'
     stored = json.loads(page.evaluate(f"localStorage.getItem('{STORE}')"))
-    assert stored['records'] == {'bestClear': 0, 'bestLevel': 0, 'runs': 0, 'wins': 0}
+    assert stored['records'] == {'bestScore': 0, 'bestClear': 0, 'bestLevel': 0, 'runs': 0, 'wins': 0}
     assert stored['settings'] == {'sound': False, 'theme': 'drive', 'motion': 'reduced', 'showFps': True}
 
 

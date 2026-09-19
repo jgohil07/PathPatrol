@@ -9,7 +9,7 @@ const MOTIONS = ['auto', 'reduced', 'full'];
 export const defaultData = () => ({
   v: 2,
   settings: { sound: true, theme: 'flight', motion: 'auto', showFps: false },
-  records: { bestClear: 0, bestLevel: 0, runs: 0, wins: 0 },
+  records: { bestScore: 0, bestClear: 0, bestLevel: 0, runs: 0, wins: 0 },
 });
 
 const count = (value, fallback) => (Number.isFinite(value) && value >= 0 ? value : fallback);

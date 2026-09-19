@@ -113,6 +113,12 @@ kbd.only-fine { --show: inline-block; }
 .stat--clear { flex: 1 1 auto; align-items: center; gap: 10px; }
 .stat--clear .stat-val { color: var(--aqua); min-width: 3.4ch; }
 .stat--runners { margin-left: auto; color: var(--muted); }
+.stat--score { align-items: center; }
+.score-block { display: grid; justify-items: end; gap: 3px; line-height: 1; }
+.stat--score .stat-val { min-width: 4.6ch; text-align: right; }
+/* Always in the layout, only its visibility changes: the HUD must not change height when a combo starts. */
+.combo { color: var(--amber); font: 500 10px/1 var(--font-ui); letter-spacing: .08em; visibility: hidden; }
+.combo.on { visibility: visible; }
 .stat--runners .stat-val { color: var(--muted); font: 500 10px/1 var(--font-ui); letter-spacing: .12em; }
 .stat-target { display: inline-flex; align-items: center; gap: 5px; color: var(--amber); font: 500 12px/1 var(--font-ui); }
 .chevron { width: 0; height: 0; border-left: 5px solid currentColor; border-block: 3.5px solid transparent; }
@@ -176,6 +182,7 @@ kbd { display: inline-block; min-width: 1.7em; margin-inline: 1px; padding: 2px 
 
 .overlay { position: absolute; inset: 0; z-index: 5; display: none; place-items: center; padding: 14px; overflow: auto; background: rgba(4, 8, 14, .66); text-align: center; }
 .app[data-phase="title"] .overlay--title,
+.app[data-phase="clear"] .overlay--clear,
 .app[data-phase="paused"] .overlay--pause,
 .app[data-phase="countdown"] .overlay--pause,
 .app[data-phase="over"] .overlay--end,
@@ -199,7 +206,8 @@ kbd { display: inline-block; min-width: 1.7em; margin-inline: 1px; padding: 2px 
 .big { font: 700 clamp(26px, 6vmin, 40px)/1 var(--font-display); letter-spacing: -.05em; }
 .receipt { display: grid; grid-template-columns: 1fr auto; width: min(300px, 100%); text-align: left; font-size: 12px; }
 .receipt dt, .receipt dd { padding: 6px 0; border-bottom: 1px dashed var(--line-strong); }
-.receipt dt { padding-right: 26px; color: var(--muted); }
+.receipt dt { padding-right: 14px; color: var(--muted); }
+.receipt .flag { margin-right: 8px; color: var(--amber); font-size: 10px; letter-spacing: .1em; }
 .receipt dd { color: var(--ink); font-weight: 500; text-align: right; }
 .crash-detail { max-width: 440px; color: var(--ink-soft); font-size: 11px; white-space: pre-wrap; word-break: break-word; user-select: text; -webkit-user-select: text; }
 .crash-detail:empty { display: none; }
@@ -246,15 +254,27 @@ kbd { display: inline-block; min-width: 1.7em; margin-inline: 1px; padding: 2px 
 @media (max-width: 700px) {
   /* Labels and key hints need room the bar does not have here, even with a mouse in use. */
   .btn-text.only-fine, kbd.only-fine { display: none !important; }
-  .hud { flex-wrap: wrap; gap: 6px 22px; }
-  .stat--clear { order: 3; flex-basis: 100%; }
-  .stat--runners { order: 2; }
+  /* A grid, not wrapping flex: however wide the score gets it cannot push anything onto a third row, so the
+     board below never changes size while you play. */
+  .hud { display: grid; grid-template-columns: auto auto minmax(0, 1fr); grid-template-areas: "level lives score" "clear clear clear"; align-items: center; gap: 6px 18px; }
+  .stat--level { grid-area: level; }
+  .stat--lives { grid-area: lives; }
+  .stat--score { grid-area: score; justify-self: end; min-width: 0; }
+  .stat--clear { grid-area: clear; }
+  .stat--runners { display: none; }
   .stat--level .stat-val { font-size: 24px; }
   .title small { display: none; }
 }
 @media (max-width: 420px) {
   .brand-name { display: none; }
   .actions { gap: 4px; }
+}
+@media (max-width: 400px) {
+  /* Room for five lives and a seven-digit score on one row: the pips and the number speak for themselves. */
+  .stat--lives .stat-key, .stat--score .stat-key { display: none; }
+  .stat--score .stat-val { font-size: 18px; }
+  .lives { gap: 3px; }
+  .life { width: 10px; height: 10px; }
 }
 
 /* --- a phone on its side: the HUD becomes a rail ------------------------------------------------ */
@@ -265,10 +285,13 @@ kbd { display: inline-block; min-width: 1.7em; margin-inline: 1px; padding: 2px 
   .bar { flex-wrap: wrap; height: auto; padding-top: 0; gap: 8px; }
   .brand-name { display: none; }
   .actions { flex-wrap: wrap; gap: 4px; }
-  .hud { flex-direction: column; align-items: stretch; gap: 8px; padding: 6px 0; }
-  .stat--clear { order: 0; flex-basis: auto; display: grid; grid-template-columns: auto 1fr auto; gap: 4px 8px; }
+  .hud { display: flex; flex-direction: column; align-items: stretch; gap: 8px; padding: 6px 0; }
+  .stat--level { order: 0; }
+  .stat--lives { order: 1; }
+  .stat--score { order: 2; margin-left: 0; }
+  .stat--clear { order: 3; flex-basis: auto; display: grid; grid-template-columns: auto 1fr auto; gap: 4px 8px; }
   .stat--clear .meter { grid-column: 1 / -1; }
-  .stat--runners { margin-left: 0; }
+  .stat--runners { display: flex; order: 4; margin-left: 0; }
   .console { white-space: normal; padding-bottom: 0; }
   .stage { padding: 8px 12px 8px 4px; }
   .hints { display: none !important; }

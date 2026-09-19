@@ -8,10 +8,10 @@ FUZZ = """
   const { Game } = await import('/js/game.js');
   const { createStorage, memoryBackend } = await import('/js/storage.js');
   const { FIELD, ROUTE, SOLID_MASK } = await import('/js/grid.js');
-  const { STEP, PATROL_RADIUS: R } = await import('/js/config.js');
+  const { STEP, PATROL_RADIUS: R, START_LIVES, MAX_LIVES, SCORE } = await import('/js/config.js');
   const rngOf = (seed) => { let s = seed >>> 0; return () => (s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296; };
   const out = { games: 0, steps: 0, actions: 0, routesStarted: 0, closed: 0, lifted: 0, hits: 0, captures: 0, restarts: 0, pauses: 0,
-                levelsCleared: 0, gameOvers: 0, shallow: 0, problems: [] };
+                levelsCleared: 0, gameOvers: 0, shallow: 0, extraLives: 0, skips: 0, combosBroken: 0, problems: [] };
   const note = (m) => { if (out.problems.length < 6) out.problems.push(m); };
 
   for (const seed of arg.seeds) {
@@ -20,6 +20,9 @@ FUZZ = """
     game.enterTitle(); game.newRun({ seed: 'fuzz-' + seed }); game.startLevel(1 + (seed % 9));
     out.games++;
     const route = game.route; let clearedInLevel = 0, lastLevel = game.level;
+    let lastRun = null, granted = 0, lastScore = 0;                  // extra lives granted in this run; the score a level has reached
+    game.on('extraLife', () => { granted++; out.extraLives++; });
+    game.on('combo', (c) => { if (c.broken) out.combosBroken++; });
     game.on('route', (e) => { if (e.type === 'cancel') out.lifted++; else if (e.type === 'hit') out.hits++; else if (e.type === 'start') out.routesStarted++; });
     game.on('capture', (c) => {
       out.captures++;
@@ -35,7 +38,19 @@ FUZZ = """
     const check = (where) => {
       const g = game.grid, level = game.level;
       if (g.count(ROUTE) !== route.cells.length) note(`seed ${seed} ${where}: ${g.count(ROUTE)} ROUTE cells in the grid, engine has ${route.cells.length}`);
-      if (game.run && (game.run.lives < 0 || game.run.lives > 3)) note(`seed ${seed} ${where}: lives ${game.run.lives}`);
+      const run = game.run;
+      if (run !== lastRun) { lastRun = run; granted = 0; lastScore = 0; }                // a new run starts its own count
+      if (run) {
+        // lives only ever rise through an extra life, and never past the cap
+        if (run.lives < 0 || run.lives > MAX_LIVES || run.lives > START_LIVES + granted) note(`seed ${seed} ${where}: lives ${run.lives} with ${granted} extra granted`);
+        if (!Number.isInteger(run.score) || run.score < 0) note(`seed ${seed} ${where}: score ${run.score}`);
+        if (level === lastLevel && run.score < lastScore) note(`seed ${seed} ${where}: score fell ${lastScore} -> ${run.score} inside a level`);
+        lastScore = level === lastLevel ? Math.max(lastScore, run.score) : run.score;
+        if (run.combo < 1 || run.combo > SCORE.combo.max || (run.combo * 4) % 1 !== 0) note(`seed ${seed} ${where}: combo ${run.combo}`);
+        if (run.score >= run.nextLifeAt) note(`seed ${seed} ${where}: score ${run.score} is past the next life threshold ${run.nextLifeAt}`);
+        if (game.storage.records.bestScore < run.score) note(`seed ${seed} ${where}: best score ${game.storage.records.bestScore} is below the score ${run.score}`);
+        if (run.stats.captures < 0 || run.stats.closeCalls < 0 || run.stats.levelsCleared < 0) note(`seed ${seed} ${where}: negative stats`);
+      }
       if (!['playing', 'paused', 'clear', 'over', 'countdown'].includes(game.phase)) note(`seed ${seed} ${where}: phase ${game.phase}`);
       if (level !== lastLevel) { lastLevel = level; clearedInLevel = 0; }                 // a new level or a restart: the tally starts again
       if (level.cleared < clearedInLevel - 1e-9 || level.cleared > 100 + 1e-9) note(`seed ${seed} ${where}: cleared went ${clearedInLevel} -> ${level.cleared}`);
@@ -62,6 +77,7 @@ FUZZ = """
       const roll = rnd();
       if (roll < 0.004 && game.isPlaying()) { game.pause('manual'); out.pauses++; check('after a pause'); game.resume(); if (game.phase === 'countdown') game.resume(); bot = null; }
       else if (roll < 0.006) { if (game.restartLevel()) { out.restarts++; bot = null; check('after a restart'); } }
+      else if (game.phase === 'clear' && roll < 0.05) { if (game.skipClear()) out.skips++; check('after a skip'); }
       else if (bot === null) { if (rnd() < 0.09 && game.isPlaying()) startBot(); }
       else {
         out.actions++;
@@ -87,3 +103,5 @@ def test_a_bot_plays_hundreds_of_games_without_breaking_any_invariant(open_page)
     assert got['routesStarted'] > 300 and got['captures'] > 100 and got['lifted'] > 30 and got['hits'] > 10
     assert got['restarts'] > 5 and got['pauses'] > 20 and got['gameOvers'] >= 1
     assert got['shallow'] < 40                                          # wedge residue (a hair inside a wall) stays rare
+    assert got['combosBroken'] > 3                                      # abandoned routes broke combos, so that path was exercised too
+    assert got['extraLives'] >= 1 and got['skips'] >= 1                 # and so were extra lives and skipping a win screen
