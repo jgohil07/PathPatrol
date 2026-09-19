@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0b1220" />
+    <meta name="description" content="A modern homage to classic feature-phone territory-cutting games." />
+    <title>Path Patrol — Retro territory game</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="#" aria-label="Path Patrol home">
+          <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+          <span>PATH<span>PATROL</span></span>
+        </a>
+        <div class="top-actions">
+          <button class="icon-button" id="soundButton" type="button" aria-label="Toggle sound" aria-pressed="true">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10v4h4l5 4V6L8 10H4Zm12.5 2a4.5 4.5 0 0 0-2-3.74v7.48A4.5 4.5 0 0 0 16.5 12Zm-2-8.05v2.07a6.5 6.5 0 0 1 0 11.96v2.07a8.5 8.5 0 0 0 0-16.1Z"/></svg>
+          </button>
+          <button class="pause-button" id="pauseButton" type="button">Pause <kbd>P</kbd></button>
+        </div>
+      </header>
+
+      <section class="game-layout" aria-label="Path Patrol game">
+        <aside class="level-panel panel">
+          <div class="eyebrow">Current run</div>
+          <div class="level-number"><span>LEVEL</span><strong id="levelLabel">01</strong></div>
+          <div class="status-row"><span>Lives</span><div class="lives" id="lives" aria-label="3 lives"></div></div>
+          <div class="status-row"><span>Target</span><strong id="targetLabel">65%</strong></div>
+          <div class="divider"></div>
+          <p class="tiny-copy">Cut a line through the colour. If a runner reaches it before the cut closes, you lose a life.</p>
+        </aside>
+
+        <section class="play-section">
+          <div class="game-meta">
+            <div><span class="eyebrow">Area cleared</span><strong id="areaLabel">0.0%</strong></div>
+            <div class="progress-track" aria-hidden="true"><div id="progressFill"></div><span id="targetMarker"></span></div>
+            <div class="runner-count"><span class="runner-dot"></span><span id="runnerLabel">1 RUNNER</span></div>
+          </div>
+          <div class="board-frame" id="boardFrame">
+            <canvas id="gameCanvas" width="1200" height="720" aria-label="Game field. Drag across a coloured area to create a runway or road."></canvas>
+            <div class="board-sheen" aria-hidden="true"></div>
+            <div class="toast" id="toast" role="status" aria-live="polite"></div>
+            <div class="pause-overlay hidden" id="pauseOverlay">
+              <span class="eyebrow">Run paused</span>
+              <strong>Take a breath.</strong>
+              <button type="button" class="primary-button" id="resumeButton">Resume <kbd>P</kbd></button>
+            </div>
+            <div class="start-overlay" id="startOverlay">
+              <div class="start-symbol" aria-hidden="true"><span></span><span></span></div>
+              <span class="eyebrow">A feature-phone classic, remade</span>
+              <h1>Claim the quiet<br />side of the board.</h1>
+              <p>Drag a line across the field. It grows into a runway — keep the moving patrols away until it closes.</p>
+              <button type="button" class="primary-button" id="startButton">Start run <span>→</span></button>
+              <small>Drag to aim your route · release to build</small>
+            </div>
+          </div>
+          <div class="controls-row">
+            <div class="scene-control" aria-label="Graphics style">
+              <span class="control-label">Visuals</span>
+              <button class="scene-button active" id="flightButton" type="button" aria-pressed="true"><span class="scene-icon plane-icon"></span>Flight</button>
+              <button class="scene-button" id="driveButton" type="button" aria-pressed="false"><span class="scene-icon car-icon"></span>Drive</button>
+            </div>
+            <button class="text-button" id="restartButton" type="button">↻ Restart level</button>
+          </div>
+        </section>
+
+        <aside class="stats-panel panel">
+          <div class="eyebrow">Local record</div>
+          <div class="record"><span>Best clear</span><strong id="bestClear">0.0%</strong></div>
+          <div class="record"><span>Highest level</span><strong id="bestLevel">—</strong></div>
+          <div class="record"><span>Runs played</span><strong id="runsPlayed">0</strong></div>
+          <div class="record"><span>Levels won</span><strong id="levelsWon">0</strong></div>
+          <div class="divider"></div>
+          <button class="text-button reset-button" id="resetStatsButton" type="button">Reset local records</button>
+        </aside>
+      </section>
+
+      <footer><span>Designed for a thumb. Built for the browser.</span><span>All progress stays on this device.</span></footer>
+    </main>
+    <script src="game.js"></script>
+  </body>
+</html>
