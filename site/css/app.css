@@ -201,6 +201,8 @@ kbd { display: inline-block; min-width: 1.7em; margin-inline: 1px; padding: 2px 
 .cta { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 4px; }
 .records { color: var(--muted); font-size: 11.5px; }
 .records:empty { display: none; }
+.saved { color: var(--amber); font-size: 11.5px; }
+.app[data-saved="yes"] .overlay--title .fine { display: none; }          /* someone resuming knows how to play; the room is needed for the second button */
 .fine { color: var(--muted); font-size: 11px; }
 .eyebrow { color: var(--muted); font: 500 10px/1 var(--font-ui); letter-spacing: .14em; text-transform: uppercase; }
 .big { font: 700 clamp(26px, 6vmin, 40px)/1 var(--font-display); letter-spacing: -.05em; }

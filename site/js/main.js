@@ -60,12 +60,13 @@ function startLoop({ game, renderer }) {
   return loop;
 }
 
-/* A hidden tab, a blurred window or a page being unloaded pauses the run. */
+/* A hidden tab, a blurred window or a page being unloaded pauses the run. Hiding or unloading also saves it
+     (a tab swiped away on a phone may never come back), after the pause has erased any route in progress. */
 function installAutoPause(game) {
-  const pause = () => game.pause('auto');
-  document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });
-  window.addEventListener('blur', pause);
-  window.addEventListener('pagehide', pause);
+  const away = () => { game.pause('auto'); game.persist(); };
+  document.addEventListener('visibilitychange', () => { if (document.hidden) away(); });
+  window.addEventListener('blur', () => game.pause('auto'));
+  window.addEventListener('pagehide', away);
 }
 
 /* Anything uncaught stops the game and says so, instead of leaving a frozen board. */

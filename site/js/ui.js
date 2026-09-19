@@ -7,7 +7,7 @@ import { START_LIVES, APP_VERSION } from './config.js';
 import { PHASE } from './game.js';
 
 const IDS = [
-  'app', 'startButton', 'againButton', 'reloadButton', 'pauseButton', 'resumeButton', 'restartButton',
+  'app', 'startButton', 'resumeRunButton', 'savedLine', 'againButton', 'reloadButton', 'pauseButton', 'resumeButton', 'restartButton',
   'pauseRestartButton', 'soundButton', 'helpButton', 'settingsButton',
   'levelLabel', 'lives', 'areaLabel', 'targetLabel', 'progressFill', 'targetMarker', 'runnerLabel', 'scoreLabel', 'comboLabel', 'toast',
   'clearOverlay', 'clearEyebrow', 'clearTotal', 'tally', 'bestScore',
@@ -76,6 +76,7 @@ export class UI {
     this.renderFps();
     this.renderStats();
     this.renderHud();
+    this.renderSaved();
     this.renderPhase();
   }
 
@@ -83,6 +84,7 @@ export class UI {
     const { game, el } = this;
     const click = (node, handler) => node.addEventListener('click', handler);
     click(el.startButton, () => game.newRun());
+    click(el.resumeRunButton, () => game.resumeRun());
     click(el.againButton, () => game.newRun());
     click(el.reloadButton, () => location.reload());
     click(el.pauseButton, () => game.togglePause());
@@ -115,6 +117,7 @@ export class UI {
 
     game.on('toast', ({ text, ms }) => this.toast(text, ms));
     game.on('hud', () => { this.renderHud(); this.renderStats(); });
+    game.on('saved', () => this.renderSaved());
     game.on('phase', () => this.renderPhase());
     game.on('countdown', () => this.renderPhase());
     game.on('over', (report) => this.renderOver(report));
@@ -299,6 +302,20 @@ export class UI {
     }
   }
 
+  /* An interrupted run on offer: the Resume button leads, Start run steps back to a plain button. */
+  renderSaved() {
+    const { el, game } = this;
+    const snap = game.saved;
+    el.app.dataset.saved = snap ? 'yes' : 'no';
+    el.resumeRunButton.hidden = !snap;
+    el.startButton.classList.toggle('btn--primary', !snap);
+    el.savedLine.hidden = !snap;
+    if (!snap) return;
+    const minutes = Math.max(0, Math.round((Date.now() - snap.savedAt) / 60000));
+    const ago = minutes < 1 ? 'just now' : minutes < 60 ? `${minutes} min ago` : `${Math.round(minutes / 60)} h ago`;
+    el.savedLine.textContent = `saved run: level ${pad2(snap.level)} · ${number(snap.run.score)} points · ${ago}`;
+  }
+
   renderTheme() {
     const theme = this.storage.settings.theme;
     this.el.flightButton.setAttribute('aria-checked', String(theme === 'flight'));
@@ -362,7 +379,7 @@ export class UI {
     if (this.isModalOpen()) return;                       // a dialog on top keeps the focus it was given
     if (phase === PHASE.PAUSED) el.resumeButton.focus({ preventScroll: true });
     else if (phase === PHASE.OVER) el.againButton.focus({ preventScroll: true });
-    else if (phase === PHASE.TITLE && matchMedia('(pointer: fine)').matches) el.startButton.focus({ preventScroll: true });
+    else if (phase === PHASE.TITLE && matchMedia('(pointer: fine)').matches) (game.saved ? el.resumeRunButton : el.startButton).focus({ preventScroll: true });
   }
 
   renderOver(report) {

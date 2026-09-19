@@ -172,3 +172,18 @@ def test_a_wide_child_cannot_widen_the_hud_column(open_page):
       wide.textContent = 'x'.repeat(200); wide.style.whiteSpace = 'nowrap'; document.querySelector('.bar').append(wide); }""")
     got = page.evaluate("""() => ({ hud: document.querySelector('.hud').getBoundingClientRect().width, chrome: document.querySelector('.chrome').getBoundingClientRect().width, vw: innerWidth })""")
     assert got['hud'] <= got['vw'] and got['chrome'] <= got['vw'], got
+
+
+@pytest.mark.parametrize('name,width,height,mode,dpr', SIZES, ids=[s[0] for s in SIZES])
+def test_the_title_with_a_saved_run_on_offer_fits_every_screen_size(open_page, engine, name, width, height, mode, dpr):
+    """Resume run adds a second big button and a line of text to the title: the tallest title there is."""
+    touch = mode == 'touch'
+    page = open_page(viewport={'width': width, 'height': height}, dpr=dpr, has_touch=touch, is_mobile=touch)
+    page.evaluate('__pp.game.newRun({ seed: "saved" }); __pp.setPatrols([{ x: 100, y: 60 }]); __pp.cutLine("v", 40); __pp.game.run.score = 1234567; __pp.game.run.nextLifeAt = 1250000; __pp.game.persist()')    # a state the game could really reach
+    page.reload()
+    page.wait_for_function('window.__pp !== undefined')
+    page.wait_for_function('__pp.state().frames > 3')
+    assert page.locator('#resumeRunButton').is_visible() and page.locator('#savedLine').is_visible()
+    check(page.evaluate(MEASURE), touch, f'{name} title with a saved run')
+    OUT.mkdir(parents=True, exist_ok=True)
+    page.screenshot(path=str(OUT / f'{engine}-{name}-1b-title-saved.png'))

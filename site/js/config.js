@@ -35,6 +35,7 @@ export const SCORE = Object.freeze({
 });
 
 export const STORAGE_KEY = 'pathpatrol:v2';
+export const SNAPSHOT_KEY = 'pathpatrol:v2:run';      // a run in progress, separate from settings and records
 export const LEGACY_KEY = 'color-divide-records-v1';
 
 /* Difficulty curve. Speed is capped so a route is always outrunnable by a quick hand. */

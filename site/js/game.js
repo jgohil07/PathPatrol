@@ -7,9 +7,10 @@
 import { START_LIVES, MAX_LIVES, LEVEL_CLEAR_DELAY, CLEAR_SKIP_AFTER, RESUME_COUNTDOWN, CELLS_PER_UNIT, SCORE, levelInfo } from './config.js';
 import { Grid, FIELD, WALL, ROUTE, toCell } from './grid.js';
 import { buildLevel } from './level.js';
-import { advance, settle } from './physics.js';
+import { advance, settle, makePatrol } from './physics.js';
 import { RouteEngine } from './route.js';
-import { randomSeed } from './rng.js';
+import { randomSeed, dayKey } from './rng.js';
+import { takeSnapshot, validateSnapshot, decodeGrid } from './snapshot.js';
 
 export const PHASE = Object.freeze({
   BOOT: 'boot',
@@ -80,6 +81,7 @@ export class Game extends Emitter {
     this.flash = 0;            // seconds left of the red "life lost" flash
     this.report = null;        // summary of the run that just ended
     this.tally = null;         // the level-clear breakdown while the win screen shows
+    this.saved = null;         // a validated snapshot of an interrupted run, offered on the title screen
     this._clearAt = 0;         // game-clock time the win screen appeared
     this.route = new RouteEngine(this);
     this.on('route', (event) => this._onRoute(event));
@@ -107,8 +109,67 @@ export class Game extends Emitter {
   enterTitle() {
     this.run = null;
     this._build(6, 'attract');
+    this._loadSaved();                       // before the phase changes: the title decides what to focus from it
     this._setPhase(PHASE.TITLE);
     this.emit('hud');
+  }
+
+  /* --- an interrupted run ------------------------------------------------------------------------ */
+
+  /* Reads the saved run, if any. Anything stale or damaged is dropped, not offered. */
+  _loadSaved() {
+    const raw = this.storage.loadSnapshot();
+    this.saved = raw ? validateSnapshot(raw, { today: dayKey(new Date()) }) : null;
+    if (raw && !this.saved) this.storage.clearSnapshot();
+    this.emit('saved', this.saved);
+  }
+
+  /* Saves the run if there is something to resume. Called at every point the run changes for good (a capture,
+     a lost life, a level start), not only when the page is hidden: it survives a hard kill, and a life lost
+     cannot be undone by reloading the page. It never clears anything: hiding the tab on the title screen
+     must not delete the saved run on offer there. Clearing is explicit (game over, an unusable save). */
+  persist() {
+    const snapshot = takeSnapshot(this);
+    if (snapshot) this.storage.saveSnapshot(snapshot);
+  }
+
+  /* Rebuilds the level from (seed, number), lays the saved state over it and goes straight into the 3-2-1
+     countdown. False if there is nothing to resume or what was saved turns out to be unusable. */
+  resumeRun() {
+    const snap = this.saved;
+    if (!snap || this.phase !== PHASE.TITLE) return false;
+    this.saved = null;
+    this.report = null;
+    this.tally = null;
+    this.run = { seed: snap.seed, mode: snap.mode, dayKey: snap.dayKey, ...snap.run };
+    if (snap.fresh) {
+      this.startLevel(snap.level);
+    } else {
+      this._build(snap.level, snap.seed);
+      const { level, grid } = this;
+      if (!decodeGrid(snap.grid, grid.cells)) {                 // valid in shape, wrong in size: not trusted after all
+        this.storage.clearSnapshot();
+        this.enterTitle();
+        return false;
+      }
+      level.patrols.length = 0;
+      for (const [x, y, vx, vy, heading] of snap.patrols) {
+        const patrol = makePatrol(x, y, vx, vy);
+        patrol.heading = heading;
+        level.patrols.push(patrol);
+      }
+      settle(level.patrols, grid);
+      level.routes = snap.routes;
+      level.cleared = ((level.initialPlayable - grid.countField()) / level.initialPlayable) * 100;
+      level.scoreAtStart = snap.scoreAtStart;
+      level.statsAtStart = snap.statsAtStart;
+      this.clock.now = snap.clock;
+      this._setPhase(PHASE.PLAYING);
+    }
+    this.pause('restored');
+    this.emit('hud');
+    this.resume();
+    return true;
   }
 
   newRun({ mode = 'normal', seed = randomSeed() } = {}) {
@@ -120,6 +181,7 @@ export class Game extends Emitter {
     };
     this.report = null;
     this.tally = null;
+    this.saved = null;
     this.storage.updateRecords((r) => { r.runs++; });
     this.startLevel(1);
   }
@@ -139,6 +201,7 @@ export class Game extends Emitter {
     this.toast(`Level ${pad2(number)} · clear ${this.level.info.target}%`, 1400);
     this.emit('levelStart', { level: number, target: this.level.info.target, lives: this.run.lives });
     this.emit('hud');
+    this.persist();
   }
 
   /* Same layout, same lives. The attempt's points are forgotten, so a restart cannot bank score; the life
@@ -156,6 +219,7 @@ export class Game extends Emitter {
     this.toast('Level restarted', 900);
     this.emit('levelStart', { level: this.level.number, target: this.level.info.target, lives: this.run.lives, restarted: true });
     this.emit('hud');
+    this.persist();
     return true;
   }
 
@@ -172,7 +236,7 @@ export class Game extends Emitter {
      a second press skips it. */
   resume() {
     if (this.phase === PHASE.PAUSED) {
-      if (this.pauseReason === 'auto') {
+      if (this.pauseReason === 'auto' || this.pauseReason === 'restored') {
         this.countdown = RESUME_COUNTDOWN;
         this._setPhase(PHASE.COUNTDOWN);
         this.emit('countdown', Math.ceil(this.countdown));
@@ -197,8 +261,12 @@ export class Game extends Emitter {
     this.flash = 0.34;
     this.emit('life', { lives: this.run.lives });
     this.emit('hud');
-    if (this.run.lives > 0) this.toast('Route intercepted — try again', 1200);
-    else this._gameOver();
+    if (this.run.lives > 0) {
+      this.toast('Route intercepted — try again', 1200);
+      this.persist();
+    } else {
+      this._gameOver();
+    }
   }
 
   _gameOver() {
@@ -214,6 +282,7 @@ export class Game extends Emitter {
       },
     };
     this.flash = 0;                        // the game-over card replaces the flash; nothing left to animate
+    this.storage.clearSnapshot();          // a finished run is not resumable
     this._setPhase(PHASE.OVER);
     this.emit('over', this.report);
   }
@@ -293,6 +362,7 @@ export class Game extends Emitter {
     this._addScore(result.points);
     this.emit('hud');
     if (this.run && level.cleared >= level.info.target) this._levelWon();
+    if (this.run) this.persist();
     return result;
   }
 

@@ -1,7 +1,7 @@
 /* Persistence. Everything goes through here so a blocked, full or corrupt localStorage can never
    stop the game: reads fall back to defaults, writes fall back to memory, and `persistent` tells the
    UI whether progress will survive a reload. */
-import { STORAGE_KEY, LEGACY_KEY } from './config.js';
+import { STORAGE_KEY, LEGACY_KEY, SNAPSHOT_KEY } from './config.js';
 
 const THEMES = ['flight', 'drive'];
 const MOTIONS = ['auto', 'reduced', 'full'];
@@ -74,6 +74,9 @@ export function createStorage(backend) {
   const write = (key, value) => {
     try { backend.setItem(key, value); } catch { persistent = false; }
   };
+  const remove = (key) => {
+    try { backend.removeItem(key); } catch { persistent = false; }
+  };
 
   function load() {
     const raw = read(STORAGE_KEY);
@@ -108,5 +111,13 @@ export function createStorage(backend) {
       return data.records;
     },
     reload() { data = load(); },
+    /* The run in progress. The caller validates what comes back: this only keeps and returns it. */
+    saveSnapshot(snapshot) { write(SNAPSHOT_KEY, JSON.stringify(snapshot)); },
+    loadSnapshot() {
+      const raw = read(SNAPSHOT_KEY);
+      if (!raw) return null;
+      try { return JSON.parse(raw); } catch { remove(SNAPSHOT_KEY); return null; }      // damaged: forget it rather than keep tripping on it
+    },
+    clearSnapshot() { remove(SNAPSHOT_KEY); },
   };
 }
