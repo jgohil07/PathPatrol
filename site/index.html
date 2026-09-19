@@ -6,10 +6,12 @@
     <meta name="theme-color" content="#0b1220" />
     <meta name="description" content="A modern homage to classic feature-phone territory-cutting games." />
     <title>Path Patrol — Retro territory game</title>
+    <!-- Placeholder so the browser does not request /favicon.ico (a 404). Phase 6.1 replaces it with the real icons. -->
+    <link rel="icon" href="data:," />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="css/app.css" />
   </head>
   <body>
     <main class="app-shell">
@@ -30,7 +32,7 @@
         <aside class="level-panel panel">
           <div class="eyebrow">Current run</div>
           <div class="level-number"><span>LEVEL</span><strong id="levelLabel">01</strong></div>
-          <div class="status-row"><span>Lives</span><div class="lives" id="lives" aria-label="3 lives"></div></div>
+          <div class="status-row"><span>Lives</span><div class="lives" id="lives" role="img" aria-label="3 lives"></div></div>
           <div class="status-row"><span>Target</span><strong id="targetLabel">65%</strong></div>
           <div class="divider"></div>
           <p class="tiny-copy">Cut a line through the colour. If a runner reaches it before the cut closes, you lose a life.</p>
@@ -43,13 +45,27 @@
             <div class="runner-count"><span class="runner-dot"></span><span id="runnerLabel">1 RUNNER</span></div>
           </div>
           <div class="board-frame" id="boardFrame">
-            <canvas id="gameCanvas" width="1200" height="720" aria-label="Game field. Drag across a coloured area to create a runway or road."></canvas>
+            <canvas id="gameCanvas" aria-label="Game field. Drag across a coloured area to create a runway or road."></canvas>
             <div class="board-sheen" aria-hidden="true"></div>
             <div class="toast" id="toast" role="status" aria-live="polite"></div>
             <div class="pause-overlay hidden" id="pauseOverlay">
-              <span class="eyebrow">Run paused</span>
-              <strong>Take a breath.</strong>
+              <span class="eyebrow" id="pauseEyebrow">Run paused</span>
+              <strong id="pauseTitle">Take a breath.</strong>
               <button type="button" class="primary-button" id="resumeButton">Resume <kbd>P</kbd></button>
+            </div>
+            <div class="start-overlay hidden" id="endOverlay">
+              <div class="start-symbol" aria-hidden="true"><span></span><span></span></div>
+              <span class="eyebrow">No lives left</span>
+              <h1>Run interrupted.</h1>
+              <p id="endSummary"></p>
+              <button type="button" class="primary-button" id="againButton">New run <span>→</span></button>
+              <small>Local records are kept on this device.</small>
+            </div>
+            <div class="pause-overlay hidden" id="crashOverlay" role="alert">
+              <span class="eyebrow">Something broke</span>
+              <strong>Please reload.</strong>
+              <p class="crash-detail" id="crashDetail"></p>
+              <button type="button" class="primary-button" id="reloadButton">Reload</button>
             </div>
             <div class="start-overlay" id="startOverlay">
               <div class="start-symbol" aria-hidden="true"><span></span><span></span></div>
@@ -81,8 +97,8 @@
         </aside>
       </section>
 
-      <footer><span>Designed for a thumb. Built for the browser.</span><span>All progress stays on this device.</span></footer>
+      <footer><span>Designed for a thumb. Built for the browser.</span><span id="storageNote">All progress stays on this device.</span></footer>
     </main>
-    <script src="game.js"></script>
+    <script type="module" src="js/main.js"></script>
   </body>
 </html>

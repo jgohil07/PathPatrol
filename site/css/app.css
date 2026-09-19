@@ -73,9 +73,13 @@ kbd { margin-left: 5px; padding: 2px 4px; color: #b4c4c3; border: 1px solid rgba
 .runner-count { display: flex; align-items: center; gap: 7px; margin-bottom: 0; color: var(--muted); font: 10px "DM Mono", monospace; letter-spacing: .1em; }
 .runner-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--coral); box-shadow: 0 0 8px rgba(255,118,95,.7); }
 
-.board-frame { position: relative; overflow: hidden; border: 1px solid rgba(149, 243, 217, .34); border-radius: 8px; background: #0c1523; box-shadow: 0 28px 60px rgba(0,0,0,.3), inset 0 0 60px rgba(0,0,0,.32), 0 0 0 5px rgba(115,245,212,.025); }
+/* The frame is the stage the canvas is fitted into (view.js), so it has no border of its own: a border
+   would leave a sliver of frame background beside the canvas. The 1px ring is drawn as a shadow. */
+.board-frame { position: relative; display: grid; place-items: center; aspect-ratio: 5 / 3; overflow: hidden; border-radius: 8px; background: #0c1523; box-shadow: 0 0 0 1px rgba(149, 243, 217, .34), 0 28px 60px rgba(0,0,0,.3), 0 0 0 6px rgba(115,245,212,.025); }
 .board-frame:before { content: ""; position: absolute; z-index: 2; inset: 0; pointer-events: none; border: 1px solid rgba(255,255,255,.08); border-radius: 7px; }
-#gameCanvas { display: block; width: 100%; height: auto; aspect-ratio: 5 / 3; cursor: crosshair; touch-action: manipulation; }
+/* Size comes from view.js. touch-action: none is what stops the browser taking a drag for a scroll or
+   pinch, which would cancel the pointer mid-route. */
+#gameCanvas { display: block; cursor: crosshair; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
 .board-sheen { position: absolute; inset: 0; z-index: 1; pointer-events: none; opacity: .22; background: linear-gradient(118deg, transparent 25%, rgba(255,255,255,.13) 46%, transparent 49%); mix-blend-mode: overlay; }
 .toast { position: absolute; z-index: 4; top: 15px; left: 50%; transform: translate(-50%, -12px); opacity: 0; pointer-events: none; padding: 7px 11px; white-space: nowrap; border: 1px solid rgba(255,255,255,.15); border-radius: 4px; color: #e9fffb; background: rgba(5,12,22,.78); font: 11px "DM Mono", monospace; letter-spacing: .04em; transition: .25s ease; }
 .toast.visible { opacity: 1; transform: translate(-50%, 0); }
@@ -92,6 +96,10 @@ kbd { margin-left: 5px; padding: 2px 4px; color: #b4c4c3; border: 1px solid rgba
 .primary-button:hover { transform: translateY(-1px); box-shadow: 0 11px 28px rgba(50,229,188,.34); }.primary-button span { font-size: 17px; }
 .pause-overlay strong { margin: 9px 0 18px; font-size: 31px; letter-spacing: -.06em; }
 .hidden { display: none; }
+.pause-button:disabled, .text-button:disabled { opacity: .4; cursor: default; pointer-events: none; }
+.icon-button[aria-pressed="false"] { color: #52636a; }
+.crash-detail { max-width: 440px; margin: 0 0 18px; color: #aebfbe; font: 11px/1.5 "DM Mono", monospace; word-break: break-word; }
+.crash-detail:empty { display: none; }
 
 .controls-row { justify-content: space-between; margin-top: 12px; }
 .scene-control { gap: 5px; padding: 4px; border: 1px solid var(--line); border-radius: 6px; background: rgba(13,23,34,.54); }

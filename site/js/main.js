@@ -1,0 +1,73 @@
+/* Composition root: builds the pieces, runs the loop, and installs the safety nets. */
+import { STEP, MAX_STEPS_PER_FRAME } from './config.js';
+import { createStorage } from './storage.js';
+import { Game, PHASE } from './game.js';
+import { View } from './view.js';
+import { Renderer } from './render.js';
+import { UI } from './ui.js';
+import { installKeyboard } from './input.js';
+
+const debug = new URLSearchParams(location.search).has('debug');
+
+/* Fixed-step simulation with interpolated drawing: motion is identical at 60, 90, 120 or 144 Hz. */
+function startLoop({ game, renderer }) {
+  let last = performance.now();
+  let acc = 0;
+  const loop = {
+    frozen: false,                     // tests hold the simulation still and step it by hand
+    frames: 0,
+  };
+  function frame(now) {
+    requestAnimationFrame(frame);
+    const dt = Math.min(0.1, Math.max(0, (now - last) / 1000));
+    last = now;
+    loop.frames++;
+    if (game.phase === PHASE.CRASHED) return;
+    game.tick(dt);
+    if (loop.frozen || !game.isStepping()) {
+      acc = 0;
+    } else {
+      acc += dt;
+      let steps = 0;
+      while (acc >= STEP && steps < MAX_STEPS_PER_FRAME) { game.step(STEP); acc -= STEP; steps++; }
+      if (steps === MAX_STEPS_PER_FRAME) acc = 0;      // too slow to catch up: drop the time, don't spiral
+    }
+    if (renderer.dirty || game.isAnimating()) renderer.draw(loop.frozen ? 1 : acc / STEP);
+  }
+  requestAnimationFrame(frame);
+  return loop;
+}
+
+/* A hidden tab, a blurred window or a page being unloaded pauses the run. */
+function installAutoPause(game) {
+  const pause = () => game.pause('auto');
+  document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });
+  window.addEventListener('blur', pause);
+  window.addEventListener('pagehide', pause);
+}
+
+/* Anything uncaught stops the game and says so, instead of leaving a frozen board. */
+function installErrorBoundary(game) {
+  window.addEventListener('error', (event) => { console.error(event.error || event.message); game.crash(event.error || event.message); });
+  window.addEventListener('unhandledrejection', (event) => { console.error(event.reason); game.crash(event.reason); });
+}
+
+function boot() {
+  const storage = createStorage();
+  const game = new Game({ storage });
+  installErrorBoundary(game);
+
+  const canvas = document.getElementById('gameCanvas');
+  const view = new View(canvas, document.getElementById('boardFrame'));
+  const renderer = new Renderer({ canvas, view, game, storage });
+  view.onChange = () => renderer.resize();
+  const ui = new UI({ game, storage, renderer, debug });
+  installKeyboard({ game, ui });
+  installAutoPause(game);
+  const loop = startLoop({ game, renderer });
+  game.enterTitle();
+
+  if (debug) import('./debug.js').then((m) => m.install({ game, view, renderer, ui, storage, loop }));
+}
+
+boot();
