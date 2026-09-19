@@ -141,6 +141,7 @@ def test_circle_hit_test_uses_true_distance(page):
 
 
 # ---- storage -----------------------------------------------------------------------------------
+NO_DAILY = {'streak': 0, 'best': 0, 'last': '', 'result': None}          # the daily's record before it has been played
 STORAGE_PRELUDE = """
   const { createStorage, memoryBackend } = await import('/js/storage.js');
   const backendOf = (initial = {}) => { const map = new Map(Object.entries(initial));
@@ -158,9 +159,9 @@ def test_storage_defaults_and_round_trip(page):
       const b = createStorage(backend);
       return { defaults, settings: { ...b.settings }, records: { ...b.records }, keys: [...backend.map.keys()] }; }""")
     assert got['defaults'] == {'settings': DEFAULT_SETTINGS,
-                               'records': {'bestScore': 0, 'bestClear': 0, 'bestLevel': 0, 'runs': 0, 'wins': 0}, 'persistent': True}
+                               'records': {'bestScore': 0, 'bestClear': 0, 'bestLevel': 0, 'runs': 0, 'wins': 0, 'daily': NO_DAILY}, 'persistent': True}
     assert got['settings'] == {**DEFAULT_SETTINGS, 'sound': False, 'haptics': False, 'theme': 'drive', 'motion': 'reduced', 'showFps': True, 'tutorialDone': True}
-    assert got['records'] == {'bestScore': 12480, 'bestClear': 61.5, 'bestLevel': 0, 'runs': 4, 'wins': 0}
+    assert got['records'] == {'bestScore': 12480, 'bestClear': 61.5, 'bestLevel': 0, 'runs': 4, 'wins': 0, 'daily': NO_DAILY}
     assert got['keys'] == ['pathpatrol:v2']
 
 
@@ -173,7 +174,7 @@ def test_storage_migrates_the_prototype_records(page):
       s.updateSettings({});                                   // any write creates the v2 key
       return { before, keys: [...backend.map.keys()].sort(), legacyIntact: backend.map.get('color-divide-records-v1') === legacy }; }""")
     assert got['before'] == {'settings': {**DEFAULT_SETTINGS, 'theme': 'drive'},
-                             'records': {'bestScore': 0, 'bestClear': 55.5, 'bestLevel': 4, 'runs': 9, 'wins': 3}}       # the prototype kept no score
+                             'records': {'bestScore': 0, 'bestClear': 55.5, 'bestLevel': 4, 'runs': 9, 'wins': 3, 'daily': NO_DAILY}}       # the prototype kept no score
     assert got['keys'] == ['color-divide-records-v1', 'pathpatrol:v2']
     assert got['legacyIntact']
 
@@ -188,10 +189,10 @@ def test_storage_survives_garbage(page):
         const s = createStorage(backendOf({ 'pathpatrol:v2': JSON.stringify(blob) }));
         return { settings: { ...s.settings }, records: { ...s.records } }; })();
       return results; }""")
-    zero = {'bestScore': 0, 'bestClear': 0, 'bestLevel': 0, 'runs': 0, 'wins': 0}
+    zero = {'bestScore': 0, 'bestClear': 0, 'bestLevel': 0, 'runs': 0, 'wins': 0, 'daily': NO_DAILY}
     assert got['notJson'] == zero and got['legacyGarbage'] == zero
     assert got['wrongTypes'] == {'settings': DEFAULT_SETTINGS,                                            # every wrong type falls back to its default
-                                 'records': {'bestScore': 0, 'bestClear': 0, 'bestLevel': 0, 'runs': 3, 'wins': 0}}
+                                 'records': {'bestScore': 0, 'bestClear': 0, 'bestLevel': 0, 'runs': 3, 'wins': 0, 'daily': NO_DAILY}}
 
 
 def test_storage_that_throws_still_works_in_memory(page):
@@ -212,7 +213,7 @@ def test_reset_records_keeps_settings(page):
       s.resetRecords();
       return { settings: { ...s.settings }, records: { ...s.records } }; }""")
     assert got['settings'] == {**DEFAULT_SETTINGS, 'sound': False, 'haptics': False, 'theme': 'drive', 'motion': 'full', 'showFps': True, 'tutorialDone': True}     # D9: the prototype dropped the theme here
-    assert got['records'] == {'bestScore': 0, 'bestClear': 0, 'bestLevel': 0, 'runs': 0, 'wins': 0}
+    assert got['records'] == {'bestScore': 0, 'bestClear': 0, 'bestLevel': 0, 'runs': 0, 'wins': 0, 'daily': NO_DAILY}
 
 
 # ---- level -------------------------------------------------------------------------------------

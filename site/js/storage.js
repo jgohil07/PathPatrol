@@ -2,6 +2,7 @@
    stop the game: reads fall back to defaults, writes fall back to memory, and `persistent` tells the
    UI whether progress will survive a reload. */
 import { STORAGE_KEY, LEGACY_KEY, SNAPSHOT_KEY } from './config.js';
+import { isDay } from './daily.js';
 
 const THEMES = ['flight', 'drive'];
 const MOTIONS = ['auto', 'reduced', 'full'];
@@ -9,11 +10,28 @@ const MOTIONS = ['auto', 'reduced', 'full'];
 export const defaultData = () => ({
   v: 2,
   settings: { sound: true, haptics: true, theme: 'flight', motion: 'auto', showFps: false, tutorialDone: false },
-  records: { bestScore: 0, bestClear: 0, bestLevel: 0, runs: 0, wins: 0 },
+  records: { bestScore: 0, bestClear: 0, bestLevel: 0, runs: 0, wins: 0, daily: { streak: 0, best: 0, last: '', result: null } },
 });
 
 const count = (value, fallback) => (Number.isFinite(value) && value >= 0 ? value : fallback);
 const isObject = (value) => value !== null && typeof value === 'object';
+
+/* The daily's record: the streak (consecutive days the daily was started), the longest one, the day of the latest
+   counted attempt, and that attempt's result once it ended. A result only stands with a day to belong to. */
+function cleanDaily(input) {
+  const out = { streak: 0, best: 0, last: '', result: null };
+  if (!isObject(input)) return out;
+  const days = (n) => (Number.isInteger(n) && n >= 0 && n <= 100000 ? n : 0);
+  out.streak = days(input.streak);
+  out.best = Math.max(days(input.best), out.streak);
+  if (isDay(input.last)) out.last = input.last;
+  const r = input.result;
+  if (out.last && isObject(r) && Number.isInteger(r.level) && r.level >= 1 && r.level <= 9999 && Number.isFinite(r.clear) && r.clear >= 0 && r.clear <= 100
+      && Number.isFinite(r.score) && r.score >= 0 && Number.isFinite(r.progress) && r.progress >= 0 && r.progress <= 1) {
+    out.result = { level: r.level, clear: r.clear, score: Math.floor(r.score), progress: r.progress };
+  }
+  return out;
+}
 
 /* Merge untrusted JSON over the defaults; unknown keys and wrong types are dropped. */
 export function sanitize(input) {
@@ -26,7 +44,8 @@ export function sanitize(input) {
   if (MOTIONS.includes(settings.motion)) out.settings.motion = settings.motion;
   if (typeof settings.showFps === 'boolean') out.settings.showFps = settings.showFps;
   if (typeof settings.tutorialDone === 'boolean') out.settings.tutorialDone = settings.tutorialDone;
-  for (const key of Object.keys(out.records)) out.records[key] = count(records[key], out.records[key]);
+  for (const key of Object.keys(out.records)) out.records[key] = count(records[key], out.records[key]);       // (the daily's record is not a number: it keeps its default here, and is read properly next)
+  out.records.daily = cleanDaily(records.daily);
   return out;
 }
 

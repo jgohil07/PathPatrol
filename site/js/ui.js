@@ -7,6 +7,7 @@ import { START_LIVES, APP_VERSION, levelInfo } from './config.js';
 import { PHASE } from './game.js';
 import { lastInput } from './input.js';
 import { GLYPHS, POWER_NAMES } from './glyphs.js';
+import { puzzleNumber, streakNow, shareText } from './daily.js';
 import { POWER } from './powerups.js';
 
 const IDS = [
@@ -16,6 +17,7 @@ const IDS = [
   'clearOverlay', 'clearEyebrow', 'clearTotal', 'tally', 'nextLabel', 'clearNote', 'tutorialButton', 'bestScore',
   'titleRecords', 'versionLabel', 'versionLine', 'pauseEyebrow', 'pauseTitle', 'receipt', 'endSummary',
   'crashDetail', 'fpsMeter', 'storageNote', 'announcer',
+  'dailyButton', 'dailyLabel', 'dailyLine', 'shareTodayButton', 'endEyebrow', 'shareButton', 'shareDialog', 'shareText', 'copyShareButton', 'dailyStreak',
   'gameCanvas', 'powers', 'settingsDialog', 'helpDialog', 'soundSwitch', 'hapticsSwitch', 'hapticsRow', 'flightButton', 'driveButton', 'fpsSwitch',
   'bestClear', 'bestLevel', 'runsPlayed', 'levelsWon', 'resetStatsButton',
 ];
@@ -87,6 +89,7 @@ export class UI {
     this.renderHud();
     this.renderSaved();
     this.renderPhase();
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) this.renderDaily(); });       // midnight may have passed while the page was away
   }
 
   _wire() {
@@ -95,6 +98,10 @@ export class UI {
     click(el.startButton, () => this.startRun());
     click(el.resumeRunButton, () => game.resumeRun());
     click(el.againButton, () => this.startRun());
+    click(el.dailyButton, () => this.startDaily());
+    click(el.shareButton, () => this.shareResult());
+    click(el.shareTodayButton, () => this.shareResult());
+    click(el.copyShareButton, () => this.copyShared());
     click(el.reloadButton, () => location.reload());
     click(el.pauseButton, () => (game.tutorial.active && game.phase === PHASE.PLAYING ? game.skipTutorial() : game.togglePause()));
     click(el.resumeButton, () => game.resume());
@@ -113,7 +120,7 @@ export class UI {
     click(el.resetStatsButton, () => this.pressReset());
     click(el.clearOverlay, () => game.skipClear());               // the Next button is inside it, so its click lands here too
 
-    for (const dialog of [el.settingsDialog, el.helpDialog]) {
+    for (const dialog of [el.settingsDialog, el.helpDialog, el.shareDialog]) {
       dialog.addEventListener('click', (event) => {          // a click on the backdrop lands on the dialog itself
         if (event.target !== dialog) return;
         const r = dialog.getBoundingClientRect();
@@ -207,6 +214,12 @@ export class UI {
     else this.game.startTutorial({ origin: 'start' });
   }
 
+  /* Daily: today's board. A player who has never had the tutorial gets it first, and the daily after it. */
+  startDaily() {
+    if (this.storage.settings.tutorialDone) this.game.startDaily();
+    else this.game.startTutorial({ origin: 'daily' });
+  }
+
   /* The tutorial's coach holds the console line (the one place that never covers the board) until it ends. */
   renderCoach(event) {
     const { el } = this;
@@ -270,7 +283,7 @@ export class UI {
 
   /* --- dialogs ------------------------------------------------------------------------------- */
 
-  isModalOpen() { return this.el.settingsDialog.open || this.el.helpDialog.open; }
+  isModalOpen() { return this.el.settingsDialog.open || this.el.helpDialog.open || this.el.shareDialog.open; }
 
   openSettings() { this._openDialog(this.el.settingsDialog); }
   openHelp() { this._openDialog(this.el.helpDialog); }
@@ -329,6 +342,9 @@ export class UI {
     el.runsPlayed.textContent = String(r.runs);
     el.levelsWon.textContent = String(r.wins);
     el.storageNote.textContent = storage.persistent ? 'All progress stays on this device.' : "Storage is blocked here, so progress won't be saved.";
+    const daily = r.daily;
+    el.dailyStreak.textContent = `${streakNow(daily, this.game.today())} ${plural(streakNow(daily, this.game.today()), 'day', 'days')} (best ${daily.best})`;
+    this.renderDaily();
     if (!storage.persistent) el.titleRecords.textContent = "Storage is blocked here, so records won't be saved.";
     else if (!r.runs) el.titleRecords.textContent = '> no runs yet';
     else {
@@ -339,6 +355,63 @@ export class UI {
       parts.push(`${r.runs} ${plural(r.runs, 'run', 'runs')}`);
       el.titleRecords.textContent = `> ${parts.join(' · ')}`;
     }
+  }
+
+  /* The title's daily: which puzzle it is, whether today's has been played, and a way to share the result. The first
+     run of a day counts; after that the same button is a practice. */
+  renderDaily() {
+    const { el, storage, game } = this;
+    const day = game.today();
+    const daily = storage.records.daily;
+    const n = puzzleNumber(day);
+    const played = daily.last === day;
+    const streak = streakNow(daily, day);
+    el.dailyLabel.textContent = played ? `Practice #${n}` : `Daily #${n}`;
+    if (!played) el.dailyLine.textContent = `> daily #${n} · a new board${streak ? ` · streak ${streak}` : ''}`;
+    else if (daily.result) el.dailyLine.textContent = `> daily #${n} done · L${daily.result.level} · ${number(daily.result.score)} pts`;
+    else el.dailyLine.textContent = `> daily #${n} started · replays are practice`;
+    el.shareTodayButton.hidden = !(played && daily.result);
+    el.app.dataset.daily = played && daily.result ? 'done' : 'open';
+  }
+
+  /* --- sharing -------------------------------------------------------------------------------- */
+
+  /* The text of the counted result: the game-over card's, or today's stored one from the title. */
+  shareResult() {
+    const { game, storage } = this;
+    const report = game.report && game.report.daily;
+    const daily = storage.records.daily;
+    const text = report && report.text ? report.text : daily.result ? shareText(daily.last, daily.result) : null;
+    return text ? this.share(text) : Promise.resolve('nothing');
+  }
+
+  /* The system share sheet where there is one, else the clipboard, else the text on show to select. Says how it went
+     ('shared', 'copied', 'shown', or 'cancelled' if the person closed the sheet). */
+  async share(text) {
+    if (typeof navigator.share === 'function') {
+      try { await navigator.share({ text }); return 'shared'; }
+      catch (error) { if (error && error.name === 'AbortError') return 'cancelled'; }      // anything else: the next way
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      this.toast('Result copied to the clipboard', 1800);
+      this.announce('Result copied to the clipboard');
+      return 'copied';
+    } catch { /* no clipboard here, or not allowed */ }
+    this.el.shareText.value = text;
+    this.el.shareDialog.showModal();
+    this.el.shareText.focus();                        // Ctrl+C copies from the focused box: showModal() put the focus on the close button
+    this.el.shareText.select();
+    return 'shown';
+  }
+
+  /* The dialog's Copy button: the clipboard if it will, else the text stays selected for the person to copy. */
+  async copyShared() {
+    const { el } = this;
+    el.shareText.focus();
+    el.shareText.select();
+    try { await navigator.clipboard.writeText(el.shareText.value); el.copyShareButton.textContent = 'Copied'; }
+    catch { el.copyShareButton.textContent = 'Press Ctrl+C or Cmd+C'; }
   }
 
   /* --- power-ups ------------------------------------------------------------------------------ */
@@ -404,7 +477,8 @@ export class UI {
     if (!snap) return;
     const minutes = Math.max(0, Math.round((Date.now() - snap.savedAt) / 60000));
     const ago = minutes < 1 ? 'just now' : minutes < 60 ? `${minutes} min ago` : `${Math.round(minutes / 60)} h ago`;
-    el.savedLine.textContent = `saved run: level ${pad2(snap.level)} · ${number(snap.run.score)} points · ${ago}`;
+    const kind = snap.mode === 'daily' ? (snap.run.practice ? 'practice run' : `daily #${puzzleNumber(snap.dayKey)}`) : 'saved run';
+    el.savedLine.textContent = `${kind}: level ${pad2(snap.level)} · ${number(snap.run.score)} points · ${ago}`;
   }
 
   renderTheme() {
@@ -477,7 +551,7 @@ export class UI {
 
     if (this.isModalOpen()) return;                       // a dialog on top keeps the focus it was given
     if (phase === PHASE.PAUSED) el.resumeButton.focus({ preventScroll: true });
-    else if (phase === PHASE.OVER) el.againButton.focus({ preventScroll: true });
+    else if (phase === PHASE.OVER) el.againButton.focus({ preventScroll: true });          // (renderOver moves it to Share when there is a result to share)
     else if (phase === PHASE.TITLE && matchMedia('(pointer: fine)').matches) (game.saved ? el.resumeRunButton : el.startButton).focus({ preventScroll: true });
     else if (phase === PHASE.PLAYING) this._focusBoardForKeys();
   }
@@ -493,15 +567,24 @@ export class UI {
   renderOver(report) {
     const { el, storage } = this;
     const best = report.newBest;
-    fillRows(el.receipt, [
+    const daily = report.daily;
+    const receiptRows = [
       ['Score', number(report.score), best.score ? 'NEW BEST' : ''],
       ['Level reached', pad2(report.level)],
       ['Best clear', `${storage.records.bestClear.toFixed(1)}%`, best.clear ? 'NEW BEST' : ''],
       ['Captures', String(report.stats.captures)],
       ['Close calls', String(report.stats.closeCalls)],
-    ]);
-    el.endSummary.textContent = best.score ? 'A new high score. Go again?' : 'Start fresh and find a cleaner line.';
-    this.announce(`Run over. ${number(report.score)} points, level ${report.level}${best.score ? ', a new best score' : ''}`);
+    ];
+    el.endEyebrow.textContent = !daily ? 'No lives left' : daily.practice ? 'Practice · no lives left' : `Daily #${daily.number} · no lives left`;
+    if (daily) receiptRows.unshift(['Daily', `#${daily.number}`, daily.practice ? 'PRACTICE' : '']);
+    el.endSummary.textContent = !daily ? (best.score ? 'A new high score. Go again?' : 'Start fresh and find a cleaner line.')
+      : daily.practice ? "Practice runs don't count towards your streak or your shared result."
+      : `Streak: ${daily.streak} ${plural(daily.streak, 'day', 'days')}. A new board tomorrow.`;
+    el.shareButton.hidden = !(daily && daily.text);
+    el.againButton.classList.toggle('btn--primary', el.shareButton.hidden);
+    fillRows(el.receipt, receiptRows);
+    if (!el.shareButton.hidden && !this.isModalOpen()) el.shareButton.focus({ preventScroll: true });       // the phase change ran first, when the card still said "no share"
+    this.announce(`Run over. ${number(report.score)} points, level ${report.level}${best.score ? ', a new best score' : ''}${daily && !daily.practice ? '. Your daily result is ready to share' : ''}`);
   }
 
   /* The win screen: what the level's captures scored, then each bonus. */

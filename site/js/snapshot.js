@@ -70,7 +70,7 @@ export function takeSnapshot(game, now = Date.now()) {
   const base = {
     v: SNAPSHOT_VERSION, app: APP_VERSION, savedAt: now,
     mode: run.mode, seed: run.seed, dayKey: run.dayKey || null,
-    run: { lives: run.lives, score: run.score, combo: run.combo, nextLifeAt: run.nextLifeAt, stats: { ...run.stats }, best0: { ...run.best0 } },
+    run: { lives: run.lives, score: run.score, combo: run.combo, nextLifeAt: run.nextLifeAt, stats: { ...run.stats }, best0: { ...run.best0 }, practice: !!run.practice },
   };
   // On the win screen the level is done: come back to the next one, from its start.
   if (phase === 'clear') return { ...base, level: level.number + 1, fresh: true };
@@ -136,7 +136,7 @@ export function validateSnapshot(raw, { now = Date.now(), today = null } = {}) {
   const out = {
     v: SNAPSHOT_VERSION, app: raw.app, savedAt: raw.savedAt, mode: raw.mode, seed: raw.seed,
     dayKey: raw.mode === 'daily' ? raw.dayKey : null, level: raw.level, fresh: raw.fresh,
-    run: { lives: r.lives, score: r.score, combo: r.combo, nextLifeAt: r.nextLifeAt, stats, best0: { score: b.score, clear: b.clear, level: b.level } },
+    run: { lives: r.lives, score: r.score, combo: r.combo, nextLifeAt: r.nextLifeAt, stats, best0: { score: b.score, clear: b.clear, level: b.level }, practice: r.practice === true },
   };
   if (raw.fresh) return out;
 

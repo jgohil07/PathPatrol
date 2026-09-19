@@ -202,11 +202,25 @@ kbd { display: inline-block; min-width: 1.7em; margin-inline: 1px; padding: 2px 
 .tagline { color: var(--ink-soft); font-size: 13px; }
 .caret { margin-left: 1px; color: var(--aqua); animation: blink 1.1s steps(1) infinite; }
 .cta { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 4px; }
+.cta-wide { flex: 1 1 100%; }                                  /* Resume takes a row of its own, above Start and Daily */
+.btn--daily { border-color: var(--amber); color: var(--amber); }
+.btn--daily span[aria-hidden] { margin-right: 8px; }
+.daily-line { color: var(--amber); font-size: 11.5px; }
+.daily-line:empty { display: none; }
 .records { color: var(--muted); font-size: 11.5px; }
 .records:empty { display: none; }
 .saved { color: var(--amber); font-size: 11.5px; }
-.app[data-saved="yes"] .overlay--title .fine { display: none; }          /* someone resuming knows how to play; the room is needed for the second button */
+.app[data-saved="yes"] .overlay--title .fine, .app[data-daily="done"] .overlay--title .fine { display: none; }          /* someone resuming knows how to play; the room is needed for the second button */
 .fine { color: var(--muted); font-size: 11px; }
+/* A short screen with a saved run, or a finished daily to share, has no room for the decoration: the symbol and the tagline go,
+   and with both on the title, the records line as well. */
+@media (max-height: 640px) {
+  .app[data-saved="yes"] .overlay--title .start-symbol, .app[data-daily="done"] .overlay--title .start-symbol,
+  .app[data-saved="yes"] .overlay--title .tagline, .app[data-daily="done"] .overlay--title .tagline { display: none; }
+  .app[data-saved="yes"][data-daily="done"] .overlay--title .records { display: none; }
+  .overlay--end .panel { gap: 8px; }                                         /* the game-over card of a daily has six rows and two buttons: tighter */
+  .overlay--end .receipt dt, .overlay--end .receipt dd { padding: 3px 0; }
+}
 .eyebrow { color: var(--muted); font: 500 10px/1 var(--font-ui); letter-spacing: .14em; text-transform: uppercase; }
 .big { font: 700 clamp(26px, 6vmin, 40px)/1 var(--font-display); letter-spacing: -.05em; }
 .receipt { display: grid; grid-template-columns: 1fr auto; width: min(300px, 100%); text-align: left; font-size: 12px; }
@@ -253,6 +267,9 @@ kbd { display: inline-block; min-width: 1.7em; margin-inline: 1px; padding: 2px 
 .records-list dd, .keys dd { color: var(--ink); font-weight: 500; text-align: right; }
 .how { display: grid; gap: 10px; padding-left: 20px; color: var(--ink-soft); }
 .how b { color: var(--ink); font-weight: 500; }
+.how-daily { color: var(--ink-soft); }
+.how-daily b { color: var(--amber); font-weight: 500; }
+.share-text { width: 100%; padding: 10px 12px; border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--bg); color: var(--ink); font: 500 12.5px/1.5 var(--font-ui); resize: none; }
 .version-line { text-align: center; }
 
 /* --- wide windows: the top bar, HUD and hints line up with the board's edges, not the window's ---- */

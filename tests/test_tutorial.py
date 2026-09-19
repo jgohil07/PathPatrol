@@ -102,7 +102,7 @@ def test_the_coach_moves_through_touch_drag_and_finish_and_then_offers_play(open
     assert page.locator('#nextLabel').text_content() == 'Play' and page.locator('#clearNote').is_visible()
     assert settings(page)['tutorialDone'] is True and not page.evaluate('__pp.game.tutorial.active')
     assert page.evaluate('({ ...__pp.storage.records, score: __pp.game.run.score, lives: __pp.game.run.lives })') == \
-        {'bestScore': 0, 'bestClear': 0, 'bestLevel': 0, 'runs': 0, 'wins': 0, 'score': 0, 'lives': 3}    # practice left no trace
+        {'bestScore': 0, 'bestClear': 0, 'bestLevel': 0, 'runs': 0, 'wins': 0, 'daily': {'streak': 0, 'best': 0, 'last': '', 'result': None}, 'score': 0, 'lives': 3}    # practice left no trace
     assert page.evaluate(f"localStorage.getItem('{RUN_KEY}')") is None                                    # and nothing to resume
 
     page.keyboard.press('Enter')                                                    # straight away: refused, like any win screen

@@ -85,10 +85,13 @@
               <h1 class="title">PATH<span class="slash">/</span>PATROL <small id="versionLabel">v1.0.0</small></h1>
               <p class="tagline">&gt; claim the quiet side of the board<span class="caret" aria-hidden="true">_</span></p>
               <div class="cta">
-                <button type="button" class="btn btn--primary btn--big" id="resumeRunButton" hidden><svg class="icon" aria-hidden="true"><use href="#i-play" /></svg>Resume run</button>
+                <button type="button" class="btn btn--primary btn--big cta-wide" id="resumeRunButton" hidden><svg class="icon" aria-hidden="true"><use href="#i-play" /></svg>Resume run</button>
                 <button type="button" class="btn btn--primary btn--big" id="startButton"><svg class="icon" aria-hidden="true"><use href="#i-play" /></svg>Start run</button>
+                <button type="button" class="btn btn--big btn--daily" id="dailyButton"><span aria-hidden="true">&#9670;</span><span id="dailyLabel">Daily</span></button>
               </div>
               <p class="saved" id="savedLine" hidden></p>
+              <p class="daily-line" id="dailyLine"></p>
+              <button type="button" class="btn btn--daily" id="shareTodayButton" hidden>Share today's result</button>
               <p class="records" id="titleRecords"></p>
               <p class="fine">Start on an edge · draw across · finish on an edge</p>
             </div>
@@ -117,11 +120,14 @@
 
           <div class="overlay overlay--end" id="endOverlay">
             <div class="panel">
-              <span class="eyebrow">No lives left</span>
+              <span class="eyebrow" id="endEyebrow">No lives left</span>
               <h2 class="big">Run interrupted.</h2>
               <dl class="receipt" id="receipt"></dl>
               <p class="fine" id="endSummary"></p>
-              <div class="cta"><button type="button" class="btn btn--primary btn--big" id="againButton"><svg class="icon" aria-hidden="true"><use href="#i-play" /></svg>New run</button></div>
+              <div class="cta">
+                <button type="button" class="btn btn--primary btn--big" id="shareButton" hidden>Share result</button>
+                <button type="button" class="btn btn--primary btn--big" id="againButton"><svg class="icon" aria-hidden="true"><use href="#i-play" /></svg>New run</button>
+              </div>
             </div>
           </div>
 
@@ -185,6 +191,7 @@
           <div><dt>Highest level cleared</dt><dd id="bestLevel">—</dd></div>
           <div><dt>Runs played</dt><dd id="runsPlayed">0</dd></div>
           <div><dt>Levels won</dt><dd id="levelsWon">0</dd></div>
+          <div><dt>Daily streak</dt><dd id="dailyStreak">0 days</dd></div>
         </dl>
         <button class="btn btn--danger" id="resetStatsButton" type="button">Reset local records</button>
         <p class="fine version-line">Path Patrol <span id="versionLine">v1.0.0</span></p>
@@ -203,6 +210,7 @@
           <li><b>Finish on an edge.</b> The side without patrols is yours. Claim the target percentage to win the level.</li>
           <li><b>Don't get caught.</b> If a patrol touches a route you are still drawing, you lose a life. Lifting mid-field cancels it for free.</li>
         </ol>
+        <p class="how-daily"><b>Daily.</b> One board a day, the same for everyone: three lives, no restarts. Only your first run of the day counts; after that it is practice. Share your result when it ends.</p>
         <button class="btn" id="tutorialButton" type="button"><svg class="icon" aria-hidden="true"><use href="#i-play" /></svg>Play the tutorial</button>
         <h3 class="dialog-sub">Keys</h3>
         <dl class="keys">
@@ -214,6 +222,18 @@
           <div><dt><kbd>T</kbd></dt><dd>Switch Flight / Drive</dd></div>
           <div><dt><kbd>?</kbd> / <kbd>H</kbd></dt><dd>This help</dd></div>
         </dl>
+      </form>
+    </dialog>
+
+    <dialog class="dialog" id="shareDialog" aria-labelledby="shareTitle">
+      <form method="dialog" class="dialog-body">
+        <header class="dialog-head">
+          <h2 id="shareTitle">Share your result</h2>
+          <button class="btn btn--icon" value="close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-close" /></svg></button>
+        </header>
+        <p class="fine">Sharing is not available here. Copy this and paste it wherever you like.</p>
+        <textarea class="share-text" id="shareText" readonly rows="5" spellcheck="false" aria-label="Your result"></textarea>
+        <button class="btn btn--primary" id="copyShareButton" type="button">Copy</button>
       </form>
     </dialog>
 

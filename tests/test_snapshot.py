@@ -148,7 +148,8 @@ def test_a_restored_game_is_the_same_game_and_plays_on_identically(page):
       const patrols = (g) => g.level.patrols.map((p) => [p.x, p.y, p.vx, p.vy, p.heading, p.speed]);
       out.grid = A.grid.cells.length === B.grid.cells.length && A.grid.cells.every((v, i) => v === B.grid.cells[i]);
       out.patrols = JSON.stringify(patrols(A)) === JSON.stringify(patrols(B));
-      const runOf = (g) => JSON.stringify({ ...g.run, dayKey: undefined });
+      const canon = (v) => JSON.stringify(v, (k, x) => (x && typeof x === 'object' && !Array.isArray(x) ? Object.fromEntries(Object.entries(x).sort()) : x));     // the order keys were added in is not part of a run
+      const runOf = (g) => canon({ ...g.run, dayKey: undefined });
       out.run = runOf(A) === runOf(B);
       out.level = JSON.stringify([A.level.number, A.level.cleared, A.level.scoreAtStart, A.level.statsAtStart, A.level.routes, A.level.initialPlayable, A.clock.now]) ===
                   JSON.stringify([B.level.number, B.level.cleared, B.level.scoreAtStart, B.level.statsAtStart, B.level.routes, B.level.initialPlayable, B.clock.now]);

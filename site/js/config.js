@@ -41,6 +41,14 @@ export const KEYBOARD = Object.freeze({
   speed: 30,                 // units per second
 });
 
+/* The daily challenge: the day puzzle #1 was, where a shared result points, and how the shared pattern is drawn. */
+export const DAILY = Object.freeze({
+  epoch: '2026-09-19',
+  shareUrl: 'https://jgohil07.github.io/PathPatrol/',
+  pathGlyphs: 11,            // levels shown in the shared pattern before it is shortened with an ellipsis
+  barLength: 4,              // blocks in the shared progress bar
+});
+
 export const TUTORIAL = Object.freeze({
   speedScale: 0.45,          // the patrol moves at this fraction of level 1's speed
   minCapture: 5,             // percent: a smaller capture does not finish it (draw across the whole board)

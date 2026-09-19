@@ -14,17 +14,20 @@ FUZZ = """
   const { validateSnapshot } = await import('/js/snapshot.js');
   const rngOf = (seed) => { let s = seed >>> 0; return () => (s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296; };
   const out = { games: 0, steps: 0, actions: 0, routesStarted: 0, closed: 0, lifted: 0, hits: 0, captures: 0, restarts: 0, pauses: 0,
-                levelsCleared: 0, gameOvers: 0, shallow: 0, extraLives: 0, skips: 0, combosBroken: 0, tracerChases: 0, tracerCatches: 0, tracerLevels: 0, contourChecks: 0, saves: 0,
+                levelsCleared: 0, gameOvers: 0, shallow: 0, extraLives: 0, skips: 0, combosBroken: 0, tracerChases: 0, tracerCatches: 0, tracerLevels: 0, contourChecks: 0, saves: 0, dailyGames: 0, dailyOvers: 0, dailyCounted: 0, dailyPractice: 0,
                 spawns: 0, expired: 0, freeze: 0, shield: 0, slow: 0, frozenChecks: 0, shieldedChecks: 0, slowChecks: 0, problems: [] };
   const note = (m) => { if (out.problems.length < 6) out.problems.push(m); };
 
   for (const seed of arg.seeds) {
     const rnd = rngOf(seed * 7919 + 13);
     const game = new Game({ storage: createStorage(memoryBackend()) });
-    game.enterTitle(); game.newRun({ seed: 'fuzz-' + seed }); game.startLevel(1 + (seed % 9));
+    const isDaily = seed % 3 === 0;                                   // a third of the games are dailies, each on its own pinned day
+    if (isDaily) { game.today = () => '2026-09-' + String(10 + (seed % 15)); out.dailyGames++; }
+    const begin = (tag) => { if (isDaily) game.startDaily(); else game.newRun({ seed: 'fuzz-' + seed + tag }); };      // (a second daily on the same day is practice)
+    game.enterTitle(); begin(''); game.startLevel(1 + (seed % 9));
     out.games++;
     const save = game.persist.bind(game);                             // whatever the game writes, its own check must accept: a save it cannot read back loses the run
-    game.persist = () => { save(); const raw = game.storage.loadSnapshot(); if (raw) { out.saves++; if (validateSnapshot(raw) === null) note(`seed ${seed}: the game wrote a snapshot that its own check rejects`); } };
+    game.persist = () => { save(); const raw = game.storage.loadSnapshot(); if (raw) { out.saves++; if (validateSnapshot(raw, { today: game.today() }) === null) note(`seed ${seed}: the game wrote a snapshot that its own check rejects`); } };
     const route = game.route; let clearedInLevel = 0, lastLevel = game.level;
     let lastRun = null, granted = 0, lastScore = 0;                  // extra lives granted in this run; the score a level has reached
     game.on('extraLife', () => { granted++; out.extraLives++; });
@@ -54,7 +57,17 @@ FUZZ = """
       if (game.tracers.loops.reduce((n, l) => n + l.n, 0) !== sides) note(`seed ${seed}: the tracers' loops are stale after a capture`);
     });
     game.on('clear', () => { out.levelsCleared++; });
-    game.on('over', () => { out.gameOvers++; });
+    game.on('over', (report) => {
+      out.gameOvers++;
+      if (report.mode !== 'daily') { if (report.daily) note(`seed ${seed}: an ordinary run has a daily report`); return; }
+      out.dailyOvers++;
+      const d = report.daily, rec = game.storage.records.daily;
+      if (!d) { note(`seed ${seed}: a daily ended with no daily report`); return; }
+      if (d.counted !== (d.text !== null) || d.counted === d.practice) note(`seed ${seed}: the daily report contradicts itself (${JSON.stringify({ counted: d.counted, practice: d.practice, text: d.text !== null })})`);
+      if (d.counted) { out.dailyCounted++; if (JSON.stringify(rec.result) !== JSON.stringify(d.result)) note(`seed ${seed}: the counted result was not kept`); } else out.dailyPractice++;
+      if (!d.counted && d.result !== null) note(`seed ${seed}: a practice run has a result`);
+      if (rec.best < rec.streak || (rec.result && !rec.last)) note(`seed ${seed}: the daily record is inconsistent ${JSON.stringify(rec)}`);
+    });
 
     const check = (where) => {
       const g = game.grid, level = game.level;
@@ -117,11 +130,11 @@ FUZZ = """
     for (let i = 0; i < 2400; i++) {                                   // 20 seconds of game time
       const n = 1 + Math.floor(rnd() * 3); for (let k = 0; k < n; k++) { game.step(STEP); out.steps++; }
       check('after a step');
-      if (game.phase === 'over') { game.newRun({ seed: 'fuzz-' + seed + '-' + i }); game.startLevel(1 + Math.floor(rnd() * 8)); route.end('cancel'); bot = null; continue; }
+      if (game.phase === 'over') { begin('-' + i); game.startLevel(1 + Math.floor(rnd() * 8)); route.end('cancel'); bot = null; continue; }
       const roll = rnd();
       if (game.tracers.list.length) out.tracerLevels++;
       if (roll < 0.004 && game.isPlaying()) { game.pause('manual'); out.pauses++; check('after a pause'); game.resume(); if (game.phase === 'countdown') game.resume(); bot = null; }
-      else if (roll < 0.006) { if (game.restartLevel()) { out.restarts++; bot = null; check('after a restart'); } }
+      else if (roll < 0.006) { const restarted = game.restartLevel(); if (restarted && game.run.mode === 'daily') note(`seed ${seed}: a daily was restarted`); if (restarted) { out.restarts++; bot = null; check('after a restart'); } }
       else if (game.phase === 'clear' && roll < 0.05) { if (game.skipClear()) out.skips++; check('after a skip'); }
       else if (bot === null) { if (rnd() < 0.09 && game.isPlaying()) startBot(); }
       else {
@@ -155,3 +168,4 @@ def test_a_bot_plays_hundreds_of_games_without_breaking_any_invariant(open_page)
     assert got['spawns'] >= 20 and got['freeze'] >= 3 and got['shield'] >= 2 and got['slow'] >= 2        # every kind of power-up was taken...
     assert got['frozenChecks'] > 500 and got['shieldedChecks'] > 200 and got['slowChecks'] > 200          # ...and the invariants were checked while each held
     assert got['saves'] > 300                                           # and every save the games made was read back by the game's own check
+    assert got['dailyGames'] == 8 and got['dailyOvers'] >= 4 and got['dailyCounted'] >= 2 and got['dailyPractice'] >= 2     # a third were dailies, and ended both ways

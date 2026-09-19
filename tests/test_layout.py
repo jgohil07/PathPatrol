@@ -229,3 +229,42 @@ def test_power_up_chips_and_a_pickup_sit_on_the_board_on_every_screen_size(open_
     OUT.mkdir(parents=True, exist_ok=True)
     page.screenshot(path=str(OUT / f'{engine}-{name}-8-powerups.png'))
 
+
+
+@pytest.mark.parametrize('name,width,height,mode,dpr', SIZES, ids=[s[0] for s in SIZES])
+def test_the_daily_screens_fit_every_screen_size(open_page, engine, name, width, height, mode, dpr):
+    """The title with today's result to share (and with a saved run as well: the tallest title there is), the game-over card
+    of a counted daily (two big buttons and a longer receipt), and the dialog that shows the text when nothing can share it."""
+    touch = mode == 'touch'
+    page = open_page(viewport={'width': width, 'height': height}, dpr=dpr, has_touch=touch, is_mobile=touch)
+    OUT.mkdir(parents=True, exist_ok=True)
+    shot = lambda tag: page.screenshot(path=str(OUT / f'{engine}-{name}-{tag}.png'))      # noqa: E731
+    page.evaluate("__pp.game.today = () => '2026-09-25'; __pp.storage.updateRecords((r) => { r.daily.streak = 6; r.daily.best = 9; r.daily.last = '2026-09-25'; r.daily.result = { level: 12, clear: 61.5, score: 1234567, progress: 0.9 }; r.runs = 12; r.bestScore = 1234567; }); __pp.ui.renderStats(); 0")
+    settle(page)
+    assert page.locator('#shareTodayButton').is_visible() and page.locator('#dailyButton').is_visible()
+    check(page.evaluate(MEASURE), touch, f'{name} title, daily done')
+    shot('10-title-daily-done')
+    page.evaluate('__pp.game.newRun({ seed: "saved" }); __pp.setPatrols([{ x: 100, y: 60 }]); __pp.cutLine("v", 40); __pp.game.run.score = 1234567; __pp.game.run.nextLifeAt = 1250000; __pp.game.persist(); __pp.game.enterTitle(); 0')
+    page.reload()
+    page.wait_for_function('window.__pp !== undefined')
+    page.wait_for_function('__pp.state().frames > 3')
+    page.evaluate("__pp.game.today = () => '2026-09-25'; __pp.ui.renderStats(); 0")
+    settle(page)
+    assert page.locator('#resumeRunButton').is_visible() and page.locator('#shareTodayButton').is_visible()
+    check(page.evaluate(MEASURE), touch, f'{name} title, saved run and daily done')
+    shot('10b-title-daily-done-saved')
+    page.evaluate('__pp.game.startDaily(); __pp.game.run.score = 1234567; __pp.game.loseLife(); __pp.game.loseLife(); __pp.game.loseLife(); 0')      # today already has its counted run: this is practice
+    settle(page)
+    assert page.evaluate('__pp.state().phase') == 'over' and page.locator('#shareButton').is_hidden() and page.locator('#againButton').is_visible()
+    check(page.evaluate(MEASURE), touch, f'{name} game over, practice daily')
+    shot('11a-over-practice')
+    page.evaluate("__pp.storage.updateRecords((r) => { r.daily.last = ''; r.daily.result = null; }); __pp.game.startDaily(); __pp.game.run.score = 1234567; __pp.game.loseLife(); __pp.game.loseLife(); __pp.game.loseLife(); 0")
+    settle(page)
+    assert page.evaluate('__pp.state().phase') == 'over' and page.locator('#shareButton').is_visible() and page.locator('#againButton').is_visible()
+    check(page.evaluate(MEASURE), touch, f'{name} game over, daily')
+    shot('11-over-daily')
+    page.evaluate('__pp.ui.el.shareText.value = __pp.game.report.daily.text; __pp.ui.el.shareDialog.showModal(); 0')
+    settle(page)
+    assert page.evaluate('document.getElementById("shareDialog").open')
+    check(page.evaluate(MEASURE), touch, f'{name} share dialog')
+    shot('12-share-dialog')

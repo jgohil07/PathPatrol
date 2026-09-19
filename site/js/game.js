@@ -13,7 +13,8 @@ import { Tutorial } from './tutorial.js';
 import { Tracers } from './tracers.js';
 import { Powerups } from './powerups.js';
 import { Pilot } from './pilot.js';
-import { randomSeed, dayKey } from './rng.js';
+import { randomSeed, dayKey, dailySeed } from './rng.js';
+import { dailyResult, shareText, nextStreak, puzzleNumber } from './daily.js';
 import { takeSnapshot, validateSnapshot, decodeGrid } from './snapshot.js';
 
 export const PHASE = Object.freeze({
@@ -95,6 +96,7 @@ export class Game extends Emitter {
     this.tracers = new Tracers(this);
     this.powerups = new Powerups(this);
     this.pilot = new Pilot(this);
+    this.today = () => dayKey();                  // the local calendar day; tests replace it
     this.on('route', (event) => this._onRoute(event));
   }
 
@@ -133,7 +135,7 @@ export class Game extends Emitter {
   /* Reads the saved run, if any. Anything stale or damaged is dropped, not offered. */
   _loadSaved() {
     const raw = this.storage.loadSnapshot();
-    this.saved = raw ? validateSnapshot(raw, { today: dayKey(new Date()) }) : null;
+    this.saved = raw ? validateSnapshot(raw, { today: this.today() }) : null;
     if (raw && !this.saved) this.storage.clearSnapshot();
     this.emit('saved', this.saved);
   }
@@ -188,10 +190,10 @@ export class Game extends Emitter {
     return true;
   }
 
-  newRun({ mode = 'normal', seed = randomSeed() } = {}) {
+  newRun({ mode = 'normal', seed = randomSeed(), day = null, practice = false } = {}) {
     const records = this.storage.records;
     this.run = {
-      seed, mode, lives: START_LIVES, score: 0, combo: 1, nextLifeAt: SCORE.extraLifeEvery,
+      seed, mode, dayKey: day, practice, lives: START_LIVES, score: 0, combo: 1, nextLifeAt: SCORE.extraLifeEvery,
       stats: { captures: 0, closeCalls: 0, levelsCleared: 0 },
       best0: { score: records.bestScore, clear: records.bestClear, level: records.bestLevel },   // for the "new best" flags
     };
@@ -201,6 +203,22 @@ export class Game extends Emitter {
     this.tutorial.stop();
     this.storage.updateRecords((r) => { r.runs++; });
     this.startLevel(1);
+  }
+
+  /* Today's board: the same for everyone (its seed is the date), three lives, no restarts. Only the first attempt of a
+     day counts, towards the streak and the shareable result; later ones are practice. The attempt counts from the
+     moment it starts, so leaving and coming back cannot buy a second go. */
+  startDaily() {
+    const day = this.today();
+    const practice = this.storage.records.daily.last === day;
+    this.newRun({ mode: 'daily', seed: dailySeed(day), day, practice });
+    if (!practice) {
+      this.storage.updateRecords((r) => {
+        r.daily.streak = nextStreak(r.daily, day);            // (the best follows: the record never lets it fall below the streak)
+        r.daily.last = day;
+        r.daily.result = null;
+      });
+    }
   }
 
   /* --- the tutorial ------------------------------------------------------------------------------ */
@@ -245,6 +263,7 @@ export class Game extends Emitter {
     this.tutorial.stop();
     this.storage.updateSettings({ tutorialDone: true });
     if (origin === 'start') this.newRun();
+    else if (origin === 'daily') this.startDaily();
     else this.enterTitle();
     return true;
   }
@@ -261,7 +280,9 @@ export class Game extends Emitter {
     this._markLevelStart();
     this.tally = null;
     this._setPhase(PHASE.PLAYING);
-    this.toast(`Level ${pad2(number)} · clear ${this.level.info.target}%`, 1400);
+    const { mode, practice, dayKey: day } = this.run;
+    const tag = mode !== 'daily' ? '' : practice ? ' · practice' : ` · daily #${puzzleNumber(day)}`;
+    this.toast(`Level ${pad2(number)} · clear ${this.level.info.target}%${tag}`, 1400);
     this.emit('levelStart', { level: number, target: this.level.info.target, lives: this.run.lives });
     this.emit('hud');
     this.persist();
@@ -345,10 +366,25 @@ export class Game extends Emitter {
         level: records.bestLevel > run.best0.level,
       },
     };
+    if (run.mode === 'daily') this.report.daily = this._dailyReport(run, level);
     this.flash = 0;                        // the game-over card replaces the flash; nothing left to animate
     this.storage.clearSnapshot();          // a finished run is not resumable
     this._setPhase(PHASE.OVER);
     this.emit('over', this.report);
+  }
+
+  /* What the game-over card says of a daily. A counted attempt's result is remembered (for the title, and to share
+     again later) and its text is ready to share; a practice run's is neither. */
+  _dailyReport(run, level) {
+    const day = run.dayKey;
+    const counted = !run.practice && this.storage.records.daily.last === day;
+    let result = null, text = null;
+    if (counted) {
+      result = dailyResult(run, level);
+      text = shareText(day, result);
+      this.storage.updateRecords((r) => { r.daily.result = result; });
+    }
+    return { day, number: puzzleNumber(day), practice: !!run.practice, counted, result, text, streak: this.storage.records.daily.streak };
   }
 
   crash(error) {
@@ -484,7 +520,7 @@ export class Game extends Emitter {
   skipClear() {
     if (this.phase !== PHASE.CLEAR) return false;
     if (this.clock.now - this._clearAt < CLEAR_SKIP_AFTER) return false;
-    if (this.tally && this.tally.tutorial) this.newRun();       // the tutorial's finish screen: Play
+    if (this.tally && this.tally.tutorial) { if (this.tally.origin === 'daily') this.startDaily(); else this.newRun(); }       // the tutorial's finish screen: Play
     else this.startLevel(this.level.number + 1);                 // building the level resets the clock, which drops the automatic advance
     return true;
   }
