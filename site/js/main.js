@@ -96,7 +96,7 @@ function boot() {
   const haptics = new Haptics({ game, storage });
   const loop = startLoop({ game, renderer, sound });
   const ui = new UI({ game, storage, renderer, loop, sound, haptics, debug });
-  installKeyboard({ game, ui });
+  installKeyboard({ game, ui, view });
   installPointer({ canvas, view, game });
   installAutoPause(game);
   game.enterTitle();

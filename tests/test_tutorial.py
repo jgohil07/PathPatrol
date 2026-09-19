@@ -58,7 +58,7 @@ def test_the_first_start_run_is_the_tutorial_and_skipping_it_goes_on_to_a_real_r
     assert len(st['patrols']) == 1 and st['level'] == 1
     speed = page.evaluate('Math.hypot(__pp.state().patrols[0].vx, __pp.state().patrols[0].vy)')
     assert speed == pytest.approx(14 * 0.45)                                     # one patrol, slow
-    assert coach(page) == 'Touch the glowing edge' and page.locator('#toast').is_visible()
+    assert coach(page) == 'Start on the glowing edge' and page.locator('#toast').is_visible()
     assert page.locator('#pauseButton').get_attribute('data-state') == 'skip'
     assert page.locator('#pauseButton').get_attribute('aria-label') == 'Skip tutorial'
     assert page.locator('#restartButton').is_disabled()                            # nothing to restart in a tutorial
@@ -86,7 +86,7 @@ def test_the_coach_moves_through_touch_drag_and_finish_and_then_offers_play(open
     page = fresh_tutorial(open_page)
     assert page.evaluate('__pp.game.tutorial.step') == 1
     press(page, 34, 1)                                                              # a touch on the top edge
-    assert coach(page) == 'Keep going: drag into the field' and page.evaluate('__pp.game.tutorial.step') == 2
+    assert coach(page) == 'Keep going into the field' and page.evaluate('__pp.game.tutorial.step') == 2
     move(page, 34, 6)
     page.evaluate('__pp.step(1)')
     assert page.evaluate('__pp.game.tutorial.step') == 2                            # a few cells are not "into the field" yet
@@ -127,7 +127,7 @@ def test_lifting_or_being_hit_sends_the_coach_back_to_the_start_at_no_cost(open_
     assert page.evaluate('__pp.game.tutorial.step') == 2
     page.mouse.up()
     page.evaluate('__pp.step(1)')
-    assert page.evaluate('__pp.game.tutorial.step') == 1 and coach(page) == 'Touch the glowing edge'
+    assert page.evaluate('__pp.game.tutorial.step') == 1 and coach(page) == 'Start on the glowing edge'
 
     page.evaluate('__pp.setPatrols([{ x: 34, y: 25 }])')                            # a patrol on the line to be drawn
     press(page, 34, 1)
@@ -145,7 +145,7 @@ def test_a_touch_in_the_middle_of_the_field_leaves_the_coach_message_alone(open_
     page = fresh_tutorial(open_page)
     press(page, 60, 36)                                                              # nowhere near an edge: normally this toasts a hint
     page.mouse.up()
-    assert page.evaluate('__pp.game.tutorial.step') == 1 and coach(page) == 'Touch the glowing edge'
+    assert page.evaluate('__pp.game.tutorial.step') == 1 and coach(page) == 'Start on the glowing edge'
     assert 'Start on an edge' not in page.locator('#announcer').text_content()
 
 
@@ -297,7 +297,7 @@ def test_reduced_motion_holds_the_ghost_at_the_end_of_the_gesture(open_page):
 def test_every_coach_message_fits_the_console_line_of_the_smallest_phone(open_page):
     page = open_page(tutorial=True, viewport={'width': 320, 'height': 568}, dpr=2, has_touch=True, is_mobile=True)
     messages = page.evaluate("async () => { const { COACH } = await import('/js/tutorial.js'); return Object.values(COACH); }")
-    assert len(messages) == 6 and max(len(m) for m in messages) <= 36
+    assert len(messages) == 7 and max(len(m) for m in messages) <= 36
     page.tap('#startButton')
     fits = []
     for text in messages:
@@ -309,9 +309,9 @@ def test_every_coach_message_fits_the_console_line_of_the_smallest_phone(open_pa
 def test_the_coach_is_announced_once_per_step_and_the_skip_button_has_a_name(open_page):
     page = fresh_tutorial(open_page)
     heard = lambda: page.locator('#announcer').text_content().replace('\xa0', '')      # noqa: E731
-    assert 'Touch the glowing edge' in heard()
+    assert 'Start on the glowing edge' in heard()
     press(page, 34, 1)
-    assert heard() == 'Keep going: drag into the field'                               # one message per change, not a pile
+    assert heard() == 'Keep going into the field'                               # one message per change, not a pile
     assert page.locator('#pauseButton').get_attribute('aria-label') == 'Skip tutorial'
     page.mouse.up()
 

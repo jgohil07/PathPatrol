@@ -165,6 +165,7 @@ kbd.only-fine { --show: inline-block; }
 }
 :focus-visible { outline: 2px solid var(--aqua); outline-offset: 2px; }
 .btn:focus-visible { outline-offset: 2px; }
+#gameCanvas:focus-visible { outline-offset: -4px; }
 kbd { display: inline-block; min-width: 1.7em; margin-inline: 1px; padding: 2px 5px; border: 1px solid var(--line-strong); border-bottom-width: 2px; border-radius: 4px; color: var(--ink-soft); font: 500 10px/1.2 var(--font-ui); text-align: center; text-transform: none; letter-spacing: 0; }
 
 .icon-off, #pauseButton .icon-play, #pauseButton .icon-skip { display: none; }

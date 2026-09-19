@@ -101,8 +101,7 @@ def test_help_opens_from_the_keyboard_and_closes_on_the_backdrop(open_page):
     assert not is_open(page, 'helpDialog')
     page.keyboard.press('h')
     assert is_open(page, 'helpDialog')
-    box = page.locator('#helpDialog').bounding_box()
-    page.mouse.click(box['x'] + box['width'] / 2, box['y'] + box['height'] / 2)      # inside: stays open
+    page.locator('#helpTitle').click()                                               # inside (on its heading, which does nothing): stays open. Not the middle: that can be a button
     assert is_open(page, 'helpDialog')
     page.mouse.click(4, 4)                                                            # the backdrop: closes
     assert not is_open(page, 'helpDialog')

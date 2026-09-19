@@ -12,6 +12,7 @@ import { RouteEngine } from './route.js';
 import { Tutorial } from './tutorial.js';
 import { Tracers } from './tracers.js';
 import { Powerups } from './powerups.js';
+import { Pilot } from './pilot.js';
 import { randomSeed, dayKey } from './rng.js';
 import { takeSnapshot, validateSnapshot, decodeGrid } from './snapshot.js';
 
@@ -93,6 +94,7 @@ export class Game extends Emitter {
     this.tutorial = new Tutorial(this);
     this.tracers = new Tracers(this);
     this.powerups = new Powerups(this);
+    this.pilot = new Pilot(this);
     this.on('route', (event) => this._onRoute(event));
   }
 
@@ -505,6 +507,7 @@ export class Game extends Emitter {
         this.flash = Math.max(0, this.flash - dt);
         this.clock.advance(dt);
         if (this.phase === PHASE.PLAYING) {
+          this.pilot.update(dt);              // the keyboard cursor moves, laying route cells like a pointer would
           this.powerups.update();             // a pickup may appear or expire, an effect may end
           const scale = this.powerups.scale();
           if (scale.patrols > 0) advance(this.level.patrols, dt * scale.patrols, this.grid, this.powerups.shielded ? SHIELDED : undefined);

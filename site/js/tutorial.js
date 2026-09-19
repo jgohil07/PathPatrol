@@ -15,10 +15,11 @@ import { TUTORIAL, BOARD_H } from './config.js';
 export const STEP = Object.freeze({ EDGE: 1, DRAG: 2, FINISH: 3 });
 
 export const COACH = Object.freeze({
-  [STEP.EDGE]: 'Touch the glowing edge',
-  [STEP.DRAG]: 'Keep going: drag into the field',
+  [STEP.EDGE]: 'Start on the glowing edge',
+  [STEP.DRAG]: 'Keep going into the field',
   [STEP.FINISH]: 'Now finish on any edge',
   lifted: 'Lifted early, no harm. Try again',
+  cancelled: 'Cancelled, no harm. Try again',
   hit: 'A plane hit it: free here. Again',
   small: 'Too small. Cross the whole board',
 });
@@ -62,6 +63,7 @@ export class Tutorial {
     if (!this.active) return;
     if (event.type === 'armed' && this.step === STEP.EDGE) this._go(STEP.DRAG);
     else if (event.type === 'cancel' && (event.reason === 'lift' || event.reason === 'cancel')) this._go(STEP.EDGE, COACH.lifted);
+    else if (event.type === 'cancel' && event.reason === 'backspace') this._go(STEP.EDGE, COACH.cancelled);
     else if (event.type === 'hit') this._go(STEP.EDGE, COACH.hit);
   }
 

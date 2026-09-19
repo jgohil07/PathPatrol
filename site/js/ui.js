@@ -5,6 +5,7 @@
    sentence, because a polite live region rewritten twice in a row reads only the last write. */
 import { START_LIVES, APP_VERSION, levelInfo } from './config.js';
 import { PHASE } from './game.js';
+import { lastInput } from './input.js';
 import { GLYPHS, POWER_NAMES } from './glyphs.js';
 import { POWER } from './powerups.js';
 
@@ -15,7 +16,7 @@ const IDS = [
   'clearOverlay', 'clearEyebrow', 'clearTotal', 'tally', 'nextLabel', 'clearNote', 'tutorialButton', 'bestScore',
   'titleRecords', 'versionLabel', 'versionLine', 'pauseEyebrow', 'pauseTitle', 'receipt', 'endSummary',
   'crashDetail', 'fpsMeter', 'storageNote', 'announcer',
-  'powers', 'settingsDialog', 'helpDialog', 'soundSwitch', 'hapticsSwitch', 'hapticsRow', 'flightButton', 'driveButton', 'fpsSwitch',
+  'gameCanvas', 'powers', 'settingsDialog', 'helpDialog', 'soundSwitch', 'hapticsSwitch', 'hapticsRow', 'flightButton', 'driveButton', 'fpsSwitch',
   'bestClear', 'bestLevel', 'runsPlayed', 'levelsWon', 'resetStatsButton',
 ];
 
@@ -478,6 +479,15 @@ export class UI {
     if (phase === PHASE.PAUSED) el.resumeButton.focus({ preventScroll: true });
     else if (phase === PHASE.OVER) el.againButton.focus({ preventScroll: true });
     else if (phase === PHASE.TITLE && matchMedia('(pointer: fine)').matches) (game.saved ? el.resumeRunButton : el.startButton).focus({ preventScroll: true });
+    else if (phase === PHASE.PLAYING) this._focusBoardForKeys();
+  }
+
+  /* A player who started, resumed or carried on from the keyboard is left with the board focused, so the arrow keys
+     draw at once and the focus ring says where they are. A mouse or touch player is not given a ring: whether the
+     button they used looked focused says nothing about that (the title focuses Start before anyone has done anything). */
+  _focusBoardForKeys() {
+    if (!lastInput.keyboard) return;
+    this.el.gameCanvas.focus({ preventScroll: true });
   }
 
   renderOver(report) {

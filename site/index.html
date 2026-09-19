@@ -77,7 +77,7 @@
 
       <main class="stage" id="stage">
         <div class="board" id="boardFrame">
-          <canvas id="gameCanvas" aria-label="Game field. Draw a line from an edge across the coloured area to another edge."></canvas>
+          <canvas id="gameCanvas" tabindex="0" aria-label="Game field. Draw a line from an edge across the coloured area to another edge. With a keyboard, use the arrow keys or W A S D; Backspace cancels the route."></canvas>
 
           <div class="overlay overlay--title" id="startOverlay">
             <div class="panel">
@@ -140,7 +140,7 @@
       </main>
 
       <footer class="hints">
-        <span><kbd>P</kbd> pause</span><span><kbd>R</kbd><kbd>R</kbd> restart</span><span><kbd>M</kbd> mute</span><span><kbd>T</kbd> theme</span><span><kbd>?</kbd> help</span>
+        <span><kbd>WASD</kbd> / <kbd>arrows</kbd> draw</span><span><kbd>P</kbd> pause</span><span><kbd>R</kbd><kbd>R</kbd> restart</span><span><kbd>M</kbd> mute</span><span><kbd>T</kbd> theme</span><span><kbd>?</kbd> help</span>
         <span class="hints-note" id="storageNote">All progress stays on this device.</span>
       </footer>
     </div>
@@ -206,6 +206,8 @@
         <button class="btn" id="tutorialButton" type="button"><svg class="icon" aria-hidden="true"><use href="#i-play" /></svg>Play the tutorial</button>
         <h3 class="dialog-sub">Keys</h3>
         <dl class="keys">
+          <div><dt><kbd>WASD</kbd></dt><dd>Draw (arrow keys work too)</dd></div>
+          <div><dt><kbd>Backspace</kbd></dt><dd>Cancel the route you are drawing</dd></div>
           <div><dt><kbd>P</kbd> / <kbd>Esc</kbd></dt><dd>Pause</dd></div>
           <div><dt><kbd>R</kbd> <kbd>R</kbd></dt><dd>Restart the level</dd></div>
           <div><dt><kbd>M</kbd></dt><dd>Mute or unmute</dd></div>

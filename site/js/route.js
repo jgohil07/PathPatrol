@@ -67,15 +67,16 @@ export class RouteEngine {
     this.tip = { x: 0, y: 0 };            // where the pointer is now, board units
     this.closeCalls = new Set();          // patrols that came within SCORE.closeCall.distance of this route without hitting it; emptied when a route starts
     this._last = { x: 0, y: 0 };          // the previous sample: the walk between samples starts here
-    game.on('phase', ({ phase }) => { if (phase !== 'playing') this.cancel('phase'); });
+    game.on('phase', ({ phase }) => { if (phase !== 'playing') { this.cancel('phase'); this.down = false; } });     // the input layers let go of a pointer or key when play stops
     game.on('level', () => this._forget());
   }
 
   /* --- input ------------------------------------------------------------------------------ */
 
   /* The pointer went down at (x, y). `snap` is how far (world units) from safe ground it may start and
-     still be pulled onto it. Returns whether a route is armed; if not, nothing is lost. */
-  begin(x, y, snap = 0) {
+     still be pulled onto it. Returns whether a route is armed; if not, nothing is lost. `quiet` arms without saying
+     so (the keyboard cursor going back to where a route began: nothing was touched). */
+  begin(x, y, snap = 0, quiet = false) {
     if (!this.game.isPlaying()) return false;
     this.cancel('restart');
     this.down = true;
@@ -83,7 +84,7 @@ export class RouteEngine {
     this._last.y = this.tip.y = y;
     const { grid } = this.game;
     const cx = toCell(x), cy = toCell(y);
-    if (grid.isSolid(cx, cy)) { this._arm(cx, cy); return true; }
+    if (grid.isSolid(cx, cy)) { this._arm(cx, cy, quiet); return true; }
     const near = snap > 0 ? this._nearestSolid(x, y, snap) : null;
     if (near) {
       this._arm(near.cx, near.cy);
@@ -139,13 +140,13 @@ export class RouteEngine {
 
   /* --- internals -------------------------------------------------------------------------- */
 
-  _arm(cx, cy) {
+  _arm(cx, cy, quiet = false) {
     const from = this.mode;
     this.mode = MODE.ARMED;
     this.anchor.cx = cx;
     this.anchor.cy = cy;
     this.points.length = 0;
-    if (from === MODE.IDLE) this.game.emit('route', { type: 'armed' });          // a touch just found safe ground
+    if (from === MODE.IDLE && !quiet) this.game.emit('route', { type: 'armed' });          // a touch just found safe ground
   }
 
   /* One cell entered by the pointer's path. Returns true to stop walking. */

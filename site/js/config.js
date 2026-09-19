@@ -35,6 +35,12 @@ export const SCORE = Object.freeze({
 });
 
 /* The tutorial: one slow patrol on level 1's board and three coached steps. */
+/* Drawing with the keyboard: the cursor moves 4-directionally at this speed, through the same route engine as a pointer.
+   A swipe crosses the board in a fraction of a second; this takes a few seconds, which is what makes it the slower way. */
+export const KEYBOARD = Object.freeze({
+  speed: 30,                 // units per second
+});
+
 export const TUTORIAL = Object.freeze({
   speedScale: 0.45,          // the patrol moves at this fraction of level 1's speed
   minCapture: 5,             // percent: a smaller capture does not finish it (draw across the whole board)
