@@ -32,14 +32,14 @@ mode; sound and vibration you can switch off.
   other; speed never drifts.
 - **One board for everyone.** The daily board is generated from the date alone, with separate random streams for layout and
   for events, so nothing a player does can change a later level, and two devices with different screens see the same game.
-- **Tested like a product.** Close to a thousand test runs (about 490 tests on each of Chromium and WebKit) guard every change:
+- **Tested like a product.** About a thousand test runs (around 500 tests on each of Chromium and WebKit) guard every change:
   real touch input over the DevTools protocol, a bot that plays thousands of steps checking invariants, a layout check at eleven screen sizes, and
   the offline and update flow. The tests were themselves attacked with deliberate bugs to prove they can fail.
 
 ## Technical notes
 
 - **No build step and no dependencies.** Plain HTML, CSS and ES modules under `site/`; what is in the repository is what the
-  browser runs. The two fonts (DM Mono, Space Grotesk) are self-hosted, so nothing loads from anywhere else. It is tested on Chromium (Chrome, Edge) and WebKit (Safari); Firefox uses the same standards but is not part of the automated tests.
+  browser runs. The two fonts (DM Mono, Space Grotesk) are self-hosted, so nothing loads from anywhere else. The suite runs in CI on Chromium (Chrome, Edge) and WebKit (Safari), and it also passes on Firefox when run locally.
 - **Small modules.** `grid` (cells, flood fill), `level` (seeded layouts), `physics`, `route` (the input-agnostic route
   engine), `tracers`, `powerups`, `game` (state machine and a game-clock scheduler), `input` and `pilot` (pointer and
   keyboard), `view` and `render` (fitting, DPR, the portrait rotation, a cached static layer), `snapshot`, `daily`, `pwa`.

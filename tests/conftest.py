@@ -76,7 +76,7 @@ Locator.screenshot = _quiet_screenshot(Locator.screenshot, lambda locator: locat
 
 # Chrome says this a few seconds after the load of a document that was replaced (by a reload) before it had claimed its font preloads. Nothing
 # is wrong: a document that stays is never told it (test_design asserts that on a cold load, and that each font is fetched once).
-BENIGN_WARNING = re.compile(r'was preloaded using link preload but not used within a few seconds')
+BENIGN_WARNING = re.compile(r'was preloaded using link preload but not used within a few seconds|chrome://juggler')       # (the second: Firefox's own automation agent, not the page)
 SCREENSHOT_INJECTION = re.compile(r"Refused to apply a stylesheet because its hash, its nonce, or 'unsafe-inline' does not appear")
 
 

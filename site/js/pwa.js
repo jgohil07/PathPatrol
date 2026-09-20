@@ -61,6 +61,7 @@ export class Pwa {
         else this._reloadWhenIdle = true;
       });
       this.offline = 'pending';
+      this.onChange();                                    // (Firefox resolves the registration only once the version is installed: until then this is what the screens must say)
       const registration = await navigator.serviceWorker.register('./sw.js', { scope: './' });
       this.registration = registration;
       navigator.serviceWorker.ready.then(() => { this.offline = 'ready'; this.onChange(); });
