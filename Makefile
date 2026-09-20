@@ -1,7 +1,9 @@
 # Path Patrol: common tasks.  `make setup` once, then `make serve` or `make test`.
 PY := .venv/bin/python
 
-.PHONY: setup serve test check sw icons screenshots
+.PHONY: setup serve test live check sw icons screenshots
+
+URL ?= https://jgohil07.github.io/PathPatrol/
 
 setup:            ## create the test venv and fetch the WebKit build
 	python3 -m venv .venv
@@ -13,6 +15,9 @@ serve:            ## serve site/ at http://127.0.0.1:8000/
 
 test:             ## run the whole suite on Chromium (installed Chrome) and WebKit
 	$(PY) -m pytest tests
+
+live:             ## check a deployed site (the workflow does it after every deploy): make live [URL=...]
+	PP_LIVE_URL=$(URL) $(PY) -m pytest tests/test_live.py
 
 sw:               ## rewrite the file list and hash in site/sw.js: run it after ANY change under site/
 	python3 tools/make_sw.py

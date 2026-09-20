@@ -17,7 +17,7 @@ concurrency:
 jobs:
   test:
     name: test (${{ matrix.engine }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     strategy:
       fail-fast: false
@@ -49,7 +49,7 @@ jobs:
   deploy:
     needs: test
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       pages: write
       id-token: write
@@ -59,6 +59,8 @@ jobs:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
+    outputs:
+      page_url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/configure-pages@v6
@@ -67,3 +69,23 @@ jobs:
           path: site
       - id: deployment
         uses: actions/deploy-pages@v5
+
+  # After a deploy: the site that is really live serves this commit's files, with the right types, under its path, and plays offline.
+  live:
+    name: check the live site
+    needs: deploy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      PP_CHROMIUM_CHANNEL: ''
+      PP_LIVE_URL: ${{ needs.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.14'
+          cache: pip
+          cache-dependency-path: tests/requirements.txt
+      - run: python -m pip install -r tests/requirements.txt
+      - run: python -m playwright install --with-deps chromium webkit
+      - run: python -m pytest tests/test_live.py
