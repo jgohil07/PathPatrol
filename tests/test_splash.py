@@ -384,6 +384,7 @@ def test_its_colours_are_its_own_on_the_board_and_in_the_page_and_go_back_afterw
 
 def test_a_visit_leaves_the_ordinary_game_exactly_as_it_was(open_page):
     fresh = open_page(viewport=DESKTOP)
+    fresh.evaluate('__pp.freeze(true)')                                               # held still, so no frame's motion can differ between the two
     fresh.click('#startButton')
     expected = fresh.evaluate('({ ...__pp.state(), clock: 0, frames: 0, fit: 0 })')
     page = open_page(viewport=DESKTOP)
