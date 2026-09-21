@@ -31,12 +31,13 @@ def mode(page):
 
 
 def open_extra(page):
-    """Five taps, then a click on the splash: the extra board is running, the simulation held still."""
+    """Five taps, then a click on the splash: the extra board is running, the simulation held still (from before it starts, so
+    not one step of it is taken and positions can be compared exactly)."""
+    page.evaluate('__pp.freeze(true)')
     taps(page)
     page.wait_for_selector('.egg')
     page.click('.egg')
     page.wait_for_function('__pp.game.run && __pp.game.run.mode === "extra"')
-    page.evaluate('__pp.freeze(true)')
 
 
 def gone(page, timeout=3000):
