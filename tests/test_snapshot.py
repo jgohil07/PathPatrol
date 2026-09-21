@@ -96,7 +96,7 @@ def test_a_snapshot_is_accepted_only_when_every_field_is_sound(page):
       const accepts = (raw, o = opts) => snap.validateSnapshot(raw, o) !== null;
       const out = { good: accepts(good), rejected: {}, accepted: {} };
       const bad = {
-        'version': (c) => { c.v = 2; }, 'app major': (c) => { c.app = '2.0.0'; }, 'app not text': (c) => { c.app = 5; },
+        'version': (c) => { c.v = 3; }, 'the previous version, saved under the old curve': (c) => { c.v = 1; }, 'the extra board': (c) => { c.mode = 'extra'; }, 'app major': (c) => { c.app = '2.0.0'; }, 'app not text': (c) => { c.app = 5; },
         'older than 24 h': (c) => { c.savedAt = now - 24 * HOUR - 1; }, 'from the future': (c) => { c.savedAt = now + HOUR + 1; }, 'no time': (c) => { c.savedAt = NaN; },
         'unknown mode': (c) => { c.mode = 'x'; }, 'the tutorial': (c) => { c.mode = 'tutorial'; }, 'empty seed': (c) => { c.seed = ''; }, 'numeric seed': (c) => { c.seed = 12; },
         'daily without a day': (c) => { c.mode = 'daily'; c.dayKey = null; }, 'daily from another day': (c) => { c.mode = 'daily'; c.dayKey = '2026-09-18'; },

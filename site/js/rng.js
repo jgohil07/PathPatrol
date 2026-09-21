@@ -44,13 +44,9 @@ export class Rng {
 export const layoutRng = (seed, level) => new Rng(`${seed}|layout|${level}`);
 export const eventRng = (seed, level) => new Rng(`${seed}|events|${level}`);
 
-/* A fresh seed for an ordinary run. */
-export function randomSeed() {
-  const words = new Uint32Array(2);
-  if (globalThis.crypto?.getRandomValues) globalThis.crypto.getRandomValues(words);
-  else { words[0] = Math.random() * 4294967296; words[1] = Math.random() * 4294967296; }
-  return words[0].toString(36) + words[1].toString(36);
-}
+/* The seed of an ordinary run: fixed, so level n is the same board for every player and on every run. (The daily's is
+   its date's.) */
+export const CAMPAIGN_SEED = 'pathpatrol-campaign';
 
 /* The local calendar day as YYYY-MM-DD, and the seed the daily board derives from it. */
 export function dayKey(date = new Date()) {

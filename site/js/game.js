@@ -7,13 +7,14 @@
 import { START_LIVES, MAX_LIVES, LEVEL_CLEAR_DELAY, CLEAR_SKIP_AFTER, RESUME_COUNTDOWN, CELLS_PER_UNIT, SCORE, TUTORIAL, levelInfo } from './config.js';
 import { Grid, FIELD, WALL, ROUTE, SOLID_MASK, ROUTE_MASK, toCell } from './grid.js';
 import { buildLevel } from './level.js';
+import { buildExtraLevel } from './egg.js';
 import { advance, settle, makePatrol } from './physics.js';
 import { RouteEngine } from './route.js';
 import { Tutorial } from './tutorial.js';
 import { Tracers } from './tracers.js';
 import { Powerups } from './powerups.js';
 import { Pilot } from './pilot.js';
-import { randomSeed, dayKey, dailySeed } from './rng.js';
+import { CAMPAIGN_SEED, dayKey, dailySeed } from './rng.js';
 import { dailyResult, shareText, nextStreak, puzzleNumber } from './daily.js';
 import { takeSnapshot, validateSnapshot, decodeGrid } from './snapshot.js';
 
@@ -110,7 +111,7 @@ export class Game extends Emitter {
   }
 
   _build(number, seed) {
-    this.level = buildLevel(number, seed, this.grid);
+    this.level = this.run && this.run.mode === 'extra' ? buildExtraLevel(this.grid) : buildLevel(number, seed, this.grid);
     this.tracers.reset(this.level, seed);
     this.clock.reset();
     this.powerups.reset(this.level, seed);              // after the clock: its first pickup is timed from zero
@@ -190,7 +191,7 @@ export class Game extends Emitter {
     return true;
   }
 
-  newRun({ mode = 'normal', seed = randomSeed(), day = null, practice = false } = {}) {
+  newRun({ mode = 'normal', seed = CAMPAIGN_SEED, day = null, practice = false } = {}) {
     const records = this.storage.records;
     this.run = {
       seed, mode, dayKey: day, practice, lives: START_LIVES, score: 0, combo: 1, nextLifeAt: SCORE.extraLifeEvery,
@@ -268,6 +269,26 @@ export class Game extends Emitter {
     return true;
   }
 
+  /* The extra board (egg.js): from the title only. Like the tutorial it is practice: no lives are lost, nothing scores,
+     the records and the saved run are left alone, and nothing about it is saved. It ends when its target is claimed. */
+  startExtra() {
+    if (this.phase !== PHASE.TITLE) return false;
+    const records = this.storage.records;
+    this.run = {
+      seed: 'extra', mode: 'extra', lives: START_LIVES, score: 0, combo: 1, nextLifeAt: SCORE.extraLifeEvery,
+      stats: { captures: 0, closeCalls: 0, levelsCleared: 0 },
+      best0: { score: records.bestScore, clear: records.bestClear, level: records.bestLevel },
+    };
+    this.report = null;
+    this.tally = null;
+    this._build(1, 'extra');
+    this._markLevelStart();
+    this._setPhase(PHASE.PLAYING);
+    this.toast(`Sector 0 · clear ${this.level.info.target}%`, 1600);
+    this.emit('hud');
+    return true;
+  }
+
   /* A level is (re)started: remember where the score and stats stood, and begin at x1. */
   _markLevelStart() {
     this.level.scoreAtStart = this.run.score;
@@ -293,7 +314,7 @@ export class Game extends Emitter {
      (that is what New run is for). */
   restartLevel() {
     const ok = this.phase === PHASE.PLAYING || this.phase === PHASE.PAUSED || this.phase === PHASE.COUNTDOWN;
-    if (!ok || !this.run || this.run.mode === 'daily' || this.run.mode === 'tutorial') return false;
+    if (!ok || !this.run || this.run.mode === 'daily' || this.run.mode === 'tutorial' || this.run.mode === 'extra') return false;
     const { scoreAtStart, statsAtStart } = this.level;
     this._build(this.level.number, this.run.seed);
     this.run.score = scoreAtStart;
@@ -340,7 +361,7 @@ export class Game extends Emitter {
   /* The route engine reports a patrol touching a route. */
   loseLife() {
     if (this.phase !== PHASE.PLAYING) return;
-    if (this.run.mode === 'tutorial') { this.flash = 0.34; return; }          // practice: the red flash, and nothing lost
+    if (this.run.mode === 'tutorial' || this.run.mode === 'extra') { this.flash = 0.34; return; }          // practice: the red flash, and nothing lost
     this.run.lives--;
     this.run.combo = 1;
     this.flash = 0.34;
@@ -458,13 +479,14 @@ export class Game extends Emitter {
     level.cleared = ((level.initialPlayable - after) / level.initialPlayable) * 100;
     const gained = level.cleared - previous;
     const result = { percent: level.cleared, gained, cellsClaimed: before - after, points: 0, capturePoints: 0, closePoints: 0, closeCalls, combo: 1, nextCombo: 1, route: polyline || null };
-    const real = !!this.run && this.run.mode !== 'tutorial';                 // the tutorial is practice: no score, no records, no save
+    const real = !!this.run && this.run.mode !== 'tutorial' && this.run.mode !== 'extra';                 // the tutorial and the extra board are practice: no score, no records, no save
     if (real) Object.assign(result, this._scoreCapture(this.run, gained, closeCalls));
     if (real) this.storage.updateRecords((r) => { r.bestClear = Math.max(r.bestClear, level.cleared); });
     this.emit('capture', result);
     if (real) this._addScore(result.points);
     this.emit('hud');
     if (real && level.cleared >= level.info.target) this._levelWon();
+    if (this.run && this.run.mode === 'extra' && level.cleared >= level.info.target) this._extraCleared();
     if (real) this.persist();
     return result;
   }
@@ -515,12 +537,21 @@ export class Game extends Emitter {
     this.emit('hud');
   }
 
+  _extraCleared() {
+    this.tally = { extra: true, cleared: this.level.cleared, seconds: this.clock.now };
+    this._setPhase(PHASE.CLEAR);
+    this._clearAt = this.clock.now;
+    this.emit('clear', this.tally);
+    this.emit('hud');
+  }
+
   /* A tap, Enter or the Next button on the win screen moves on at once, but not within CLEAR_SKIP_AFTER of
      the win: the tap that closed the winning route must not skip the tally nobody has seen yet. */
   skipClear() {
     if (this.phase !== PHASE.CLEAR) return false;
     if (this.clock.now - this._clearAt < CLEAR_SKIP_AFTER) return false;
-    if (this.tally && this.tally.tutorial) { if (this.tally.origin === 'daily') this.startDaily(); else this.newRun(); }       // the tutorial's finish screen: Play
+    if (this.tally && this.tally.extra) this.enterTitle();                                   // the extra board's finish screen: back to the title
+    else if (this.tally && this.tally.tutorial) { if (this.tally.origin === 'daily') this.startDaily(); else this.newRun(); }       // the tutorial's finish screen: Play
     else this.startLevel(this.level.number + 1);                 // building the level resets the clock, which drops the automatic advance
     return true;
   }

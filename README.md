@@ -9,9 +9,10 @@ sign-up, no account, no ads, no tracking, no server. Everything, including your 
 ## What's in it
 
 **Play** — The route appears under your finger the moment you move: nothing waits for you to let go. Patrols bounce off walls
-of any angle and off each other; each level adds patrols, speed, obstacles and, from level 4, edge tracers that crawl the
-border and chase slowly drawn routes. Combos, close calls, an extra life every 25,000 points, and three power-ups you take by
-drawing through them: freeze, shield and slow. Flight (planes) and Drive (cars) looks.
+of any angle and off each other; every level is a little harder than the last (speed, the share to claim, a patrol or an
+obstacle every fifth level and, from level 5, edge tracers that crawl the border and chase slowly drawn routes) until level
+31, where it holds at the hardest a skilled player can still clear. Combos, close calls, an extra life every 25,000 points,
+and three power-ups you take by drawing through them: freeze, shield and slow. Flight (planes) and Drive (cars) looks.
 
 **Come back to it** — Your run is saved as you play and offered as *Resume run*. Records (best score, best clear, levels won,
 your daily streak) stay in your browser. Installable, and playable offline after the first visit.
@@ -30,8 +31,9 @@ mode; sound and vibration you can switch off.
 - **Physics you can trust.** A fixed 1/120 s step with sub-steps, so motion is the same at 60, 90, 120 and 144 Hz and nothing
   tunnels through a wall. Bounces follow the true direction of the wall, staircase edges included; patrols collide with each
   other; speed never drifts.
-- **One board for everyone.** The daily board is generated from the date alone, with separate random streams for layout and
-  for events, so nothing a player does can change a later level, and two devices with different screens see the same game.
+- **One board for everyone.** Level *n* is the same board for every player: an ordinary run uses one fixed seed, and the daily
+  board is generated from the date alone. Layout and events have separate random streams, so nothing a player does can
+  change a later level, and two devices with different screens see the same game.
 - **Tested like a product.** About a thousand test runs (around 500 tests on each of Chromium and WebKit) guard every change:
   real touch input over the DevTools protocol, a bot that plays thousands of steps checking invariants, a layout check at eleven screen sizes, and
   the offline and update flow. The tests were themselves attacked with deliberate bugs to prove they can fail.

@@ -10,6 +10,7 @@ import { FIELD, WALL, BORDER } from './grid.js';
 import { TRAIL_LENGTH } from './physics.js';
 import { GLYPHS } from './glyphs.js';
 import { POWER } from './powerups.js';
+import { EXTRA } from './egg.js';
 
 const PALETTES = {
   flight: [
@@ -130,8 +131,8 @@ export class Renderer {
     ctx.fillRect(0, 0, pxW, pxH);
     ctx.save();
     view.applyTransform(ctx);
-    const palette = paletteFor(this.theme, game.level.number);
-    ctx.fillStyle = palette[0];
+    const look = this._look();
+    ctx.fillStyle = look ? look.field : paletteFor(this.theme, game.level.number)[0];
     ctx.fillRect(0, 0, BOARD_W, BOARD_H);
     const shade = ctx.createLinearGradient(0, 0, BOARD_W, BOARD_H);
     shade.addColorStop(0, 'rgba(255,255,255,.08)');
@@ -152,10 +153,18 @@ export class Renderer {
     this.staticDirty = false;
   }
 
+  /* The extra board has colours of its own; every other level takes its palette from the theme. */
+  _look() {
+    const { run } = this.game;
+    return run && run.mode === 'extra' ? EXTRA.look : null;
+  }
+
   /* Claimed ground and the frame in ink, with a dot-matrix on the claimed part; open ground next to a wall
      gets a two-cell rim, strong at the wall and fading out. */
   _paintTerritory() {
     const { cells, w, h } = this.game.grid;
+    const look = this._look();
+    const ink = look ? look.ink : INK, dots = look ? look.dot : DOT, glow = look ? look.glow : GLOW;
     const px = this.territoryImage.data;
     const solid = (v) => v === WALL || v === BORDER;
     for (let y = 0; y < h; y++) {
@@ -163,12 +172,13 @@ export class Renderer {
         const i = y * w + x, o = i * 4, v = cells[i];
         if (solid(v)) {
           const dot = v === WALL && (x & 7) === 4 && (y & 7) === 4;
-          px[o] = dot ? DOT[0] : INK[0]; px[o + 1] = dot ? DOT[1] : INK[1]; px[o + 2] = dot ? DOT[2] : INK[2]; px[o + 3] = 255;
+          const c = dot ? dots : ink;
+          px[o] = c[0]; px[o + 1] = c[1]; px[o + 2] = c[2]; px[o + 3] = 255;
         } else if (v === FIELD) {
           let alpha = 0;
           if ((x > 0 && solid(cells[i - 1])) || (x < w - 1 && solid(cells[i + 1])) || (y > 0 && solid(cells[i - w])) || (y < h - 1 && solid(cells[i + w]))) alpha = 66;
           else if ((x > 1 && solid(cells[i - 2])) || (x < w - 2 && solid(cells[i + 2])) || (y > 1 && solid(cells[i - 2 * w])) || (y < h - 2 && solid(cells[i + 2 * w]))) alpha = 26;
-          px[o] = GLOW[0]; px[o + 1] = GLOW[1]; px[o + 2] = GLOW[2]; px[o + 3] = alpha;
+          px[o] = glow[0]; px[o + 1] = glow[1]; px[o + 2] = glow[2]; px[o + 3] = alpha;
         } else {
           px[o + 3] = 0;
         }

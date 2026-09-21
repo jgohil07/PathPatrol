@@ -11,7 +11,7 @@ import { GRID_W, GRID_H, BOARD_W, BOARD_H, APP_VERSION, MAX_LIVES, SCORE, levelI
 import { POWER } from './powerups.js';
 import { FIELD, WALL, BORDER, ROUTE } from './grid.js';
 
-export const SNAPSHOT_VERSION = 1;
+export const SNAPSHOT_VERSION = 2;          // 2: the difficulty curve changed and ordinary runs share one seed, so a run saved under 1 is a different game
 export const SNAPSHOT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 const CLOCK_SKEW_MS = 60 * 60 * 1000;         // a save stamped further ahead than this is not believed
 const MAX_PATROLS = 8;
@@ -62,10 +62,10 @@ export function decodeGrid(rle, cells) {
 
 /* --- taking a snapshot ------------------------------------------------------------------------------------ */
 
-/* null when there is nothing worth resuming: no run, the tutorial, or a run that has ended. */
+/* null when there is nothing worth resuming: no run, the tutorial, the extra board, or a run that has ended. */
 export function takeSnapshot(game, now = Date.now()) {
   const { run, level, phase } = game;
-  if (!run || !level || run.mode === 'tutorial') return null;
+  if (!run || !level || run.mode === 'tutorial' || run.mode === 'extra') return null;
   if (phase !== 'playing' && phase !== 'paused' && phase !== 'countdown' && phase !== 'clear') return null;
   const base = {
     v: SNAPSHOT_VERSION, app: APP_VERSION, savedAt: now,

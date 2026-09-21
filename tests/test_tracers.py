@@ -125,28 +125,28 @@ def test_positions_along_a_loop_interpolate_wrap_and_find_the_nearest_edge(page)
 
 
 # ---- spawning --------------------------------------------------------------------------------------------------------
-def test_tracers_appear_from_level_four_one_more_every_three_levels_up_to_four(page):
+def test_tracers_appear_from_level_five_one_more_every_nine_levels_up_to_three(page):
     got = js(page, """
-      const counts = {}; for (const level of [1, 2, 3, 4, 5, 6, 7, 9, 10, 13, 30]) counts[level] = setup(level).tracers.list.length;
-      const info = [1, 4, 7, 10, 13].map((l) => levelInfo(l).tracers);
-      const game = setup(4); const onLoop = game.tracers.list.every((t) => toContour(game, t.x, t.y) < 1e-6);
+      const counts = {}; for (const level of [1, 2, 3, 4, 5, 6, 9, 13, 14, 22, 23, 30]) counts[level] = setup(level).tracers.list.length;
+      const info = [1, 4, 5, 14, 23].map((l) => levelInfo(l).tracers);
+      const game = setup(23); const onLoop = game.tracers.list.length === 3 && game.tracers.list.every((t) => toContour(game, t.x, t.y) < 1e-6);
       const tutorial = new Game({ storage: createStorage(backendOf()) }); tutorial.enterTitle(); tutorial.startTutorial();
       const title = new Game({ storage: createStorage(backendOf()) }); title.enterTitle();
       return { counts, info, onLoop, tutorial: tutorial.tracers.list.length, attract: title.tracers.list.length };""")
-    assert got['counts'] == {'1': 0, '2': 0, '3': 0, '4': 1, '5': 1, '6': 1, '7': 2, '9': 2, '10': 3, '13': 4, '30': 4}
-    assert got['info'] == [0, 1, 2, 3, 4] and got['onLoop'] is True
+    assert got['counts'] == {'1': 0, '2': 0, '3': 0, '4': 0, '5': 1, '6': 1, '9': 1, '13': 1, '14': 2, '22': 2, '23': 3, '30': 3}
+    assert got['info'] == [0, 0, 1, 2, 3] and got['onLoop'] is True
     assert got['tutorial'] == 0 and got['attract'] == 1                              # none in the tutorial; the title's level 6 has one crawling
 
 
 def test_spawning_is_deterministic_evenly_spaced_and_leaves_every_layout_alone(page):
     got = js(page, """
       const spawn = (seed, level) => setup(level, null, seed).tracers.list.map((t) => [t.loop, +t.t.toFixed(6), t.dir]);
-      const out = { same: JSON.stringify(spawn('daily-x', 10)) === JSON.stringify(spawn('daily-x', 10)) };
-      const others = new Set(); for (let i = 0; i < 20; i++) others.add(JSON.stringify(spawn('seed' + i, 10)));
+      const out = { same: JSON.stringify(spawn('daily-x', 23)) === JSON.stringify(spawn('daily-x', 23)) };
+      const others = new Set(); for (let i = 0; i < 20; i++) others.add(JSON.stringify(spawn('seed' + i, 23)));
       out.varies = others.size;
-      const dirs = new Set(); for (let i = 0; i < 30; i++) for (const t of setup(10, null, 'dir' + i).tracers.list) dirs.add(t.dir);
+      const dirs = new Set(); for (let i = 0; i < 30; i++) for (const t of setup(23, null, 'dir' + i).tracers.list) dirs.add(t.dir);
       out.directions = [...dirs].sort();
-      const n = setup(10).tracers.loops[0].n; const three = spawn('spacing', 10);
+      const n = setup(23).tracers.loops[0].n; const three = spawn('spacing', 23);
       const gaps = three.map((t, i) => (three[(i + 1) % 3][1] - t[1] + n) % n).sort((a, b) => a - b);
       out.spacing = { n, gaps: gaps.map((g) => +g.toFixed(4)), third: +(n / 3).toFixed(4) };
       // the layout streams are untouched: the level a game builds has exactly the obstacles and patrols buildLevel alone gives
@@ -179,7 +179,7 @@ def test_a_tracer_crawls_the_boundary_at_exactly_22_units_a_second_in_its_direct
 
 def test_tracers_stand_still_when_paused_and_on_the_win_screen_but_crawl_on_the_title(page):
     got = js(page, """
-      const game = setup(4); const t = game.tracers.list[0]; run(game, 0.5);
+      const game = setup(5); const t = game.tracers.list[0]; run(game, 0.5);
       game.pause('manual'); const paused = [t.x, t.y]; run(game, 1); const stillPaused = t.x === paused[0] && t.y === paused[1]; game.resume();
       game.commitCapture((() => { const g = game.grid, c = []; for (let y = 0; y < g.h; y++) if (g.get(180, y) === FIELD) c.push(g.index(180, y)); return c; })());     // 76%: a win, with the patrol's side still open
       const won = game.phase; const open = game.grid.countField() > 0; const at = [game.tracers.list[0].x, game.tracers.list[0].y]; run(game, 1);
@@ -254,7 +254,7 @@ def test_a_tracer_only_notices_a_route_when_it_reaches_the_place_it_started(page
 def test_a_tracer_on_another_loop_cannot_reach_a_route_and_a_closed_or_lifted_route_ends_the_chase(page):
     got = js(page, CHASE + """
       const out = {};
-      let game = setup(5, null);                                               // level 5 has two obstacles: their edges are loops of their own
+      let game = setup(11, null);                                              // level 11 has two obstacles: their edges are loops of their own
       const o = game.level.obstacles[0]; game.tracers.place([{ x: o.x + o.w / 2, y: o.y - 0.02, dir: 1 }]);
       out.onObstacleLoop = game.tracers.list[0].loop !== 0;
       out.obstacleTracer = drawSlowly(game, 0.02, 200).events;                 // slow drawing from the frame, right under a tracer that can never come
@@ -290,7 +290,7 @@ def test_a_capture_traces_the_boundary_again_and_puts_each_tracer_on_the_nearest
 
 def test_a_level_played_with_tracers_keeps_the_loops_exact_through_many_captures(page):
     got = js(page, """
-      const game = setup(7); const problems = []; let captures = 0;
+      const game = setup(14); const problems = []; let captures = 0;
       for (const x of [10, 14, 30, 34, 50, 54, 70, 74, 90]) {
         const cells = []; const g = game.grid, col = Math.floor(x * 2); for (let y = 0; y < g.h; y++) if (g.get(col, y) === FIELD) cells.push(g.index(col, y));
         game.commitCapture(cells); captures++;
@@ -306,7 +306,7 @@ def test_a_level_played_with_tracers_keeps_the_loops_exact_through_many_captures
 # ---- saving and showing -----------------------------------------------------------------------------------------------------
 def test_a_resumed_run_puts_the_tracers_back_exactly_and_they_carry_on_identically(page):
     got = js(page, """
-      const backend = backendOf(); const A = setup(7, null, 'resume-tracers', backend);
+      const backend = backendOf(); const A = setup(14, null, 'resume-tracers', backend);
       run(A, 2.3); A.commitCapture((() => { const g = A.grid, c = []; for (let y = 0; y < g.h; y++) if (g.get(20, y) === FIELD) c.push(g.index(20, y)); return c; })()); run(A, 1.7);
       A.persist();
       const B = new Game({ storage: createStorage(backend) }); B.enterTitle(); const offered = !!B.saved && B.saved.tracers.length; B.resumeRun(); B.tick(3.1);
@@ -320,7 +320,7 @@ def test_a_resumed_run_puts_the_tracers_back_exactly_and_they_carry_on_identical
 def test_a_snapshot_with_the_wrong_tracers_is_not_trusted_and_one_that_does_not_fit_respawns_them(page):
     got = js(page, """
       const snap = await import('/js/snapshot.js');
-      const game = setup(7, null, 'validate'); game.persist();
+      const game = setup(14, null, 'validate'); game.persist();
       const good = JSON.parse(game.storage.loadSnapshot ? JSON.stringify(game.storage.loadSnapshot()) : 'null');
       const edit = (fn) => { const c = JSON.parse(JSON.stringify(good)); fn(c); return c; };
       const ok = (raw) => snap.validateSnapshot(raw) !== null;
@@ -330,7 +330,7 @@ def test_a_snapshot_with_the_wrong_tracers_is_not_trusted_and_one_that_does_not_
         'a fractional loop': (c) => { c.tracers[0][0] = 0.5; }, 'a negative position': (c) => { c.tracers[0][1] = -1; }, 'a short row': (c) => { c.tracers[0] = [0, 1]; } };
       for (const [name, fn] of Object.entries(bad)) out.rejected[name] = ok(edit(fn));
       // rows that pass validation but do not fit this board: the game starts the tracers afresh instead
-      const b2 = backendOf(); const g2 = setup(7, null, 'respawn', b2); g2.persist();
+      const b2 = backendOf(); const g2 = setup(14, null, 'respawn', b2); g2.persist();
       const raw = JSON.parse(b2.map.get('pathpatrol:v2:run')); raw.tracers = raw.tracers.map((t) => [999, t[1], t[2]]); b2.map.set('pathpatrol:v2:run', JSON.stringify(raw));
       const g3 = new Game({ storage: createStorage(b2) }); g3.enterTitle(); g3.resumeRun();
       out.respawned = { count: g3.tracers.list.length, onLoop: g3.tracers.list.every((t) => toContour(g3, t.x, t.y) < 1e-6) };

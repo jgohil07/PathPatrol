@@ -116,7 +116,7 @@ def test_a_plane_and_a_car_look_different(board):
 @pytest.mark.parametrize('theme', ['flight', 'drive'])
 def test_obstacles_are_drawn_inside_the_field_where_the_level_says(board, theme):
     page = board
-    show(page, theme, '[{ x: 100, y: 60 }]', level=5)
+    show(page, theme, '[{ x: 100, y: 60 }]', level=11)                                    # two obstacles
     obstacles = page.evaluate('__pp.state().obstacles')
     assert len(obstacles) == 2
     for o in obstacles:

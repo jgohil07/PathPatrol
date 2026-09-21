@@ -9,10 +9,11 @@ import { lastInput } from './input.js';
 import { GLYPHS, POWER_NAMES } from './glyphs.js';
 import { puzzleNumber, streakNow, shareText } from './daily.js';
 import { POWER } from './powerups.js';
+import { createEgg } from './egg.js';
 
 const IDS = [
   'app', 'startButton', 'resumeRunButton', 'savedLine', 'againButton', 'reloadButton', 'pauseButton', 'resumeButton', 'restartButton',
-  'pauseRestartButton', 'soundButton', 'helpButton', 'settingsButton',
+  'pauseRestartButton', 'leaveButton', 'soundButton', 'helpButton', 'settingsButton',
   'levelLabel', 'lives', 'areaLabel', 'targetLabel', 'progressFill', 'targetMarker', 'runnerLabel', 'scoreLabel', 'comboLabel', 'toast',
   'clearOverlay', 'clearEyebrow', 'clearTotal', 'tally', 'nextLabel', 'clearNote', 'tutorialButton', 'bestScore',
   'titleRecords', 'versionLabel', 'versionLine', 'pauseEyebrow', 'pauseTitle', 'receipt', 'endSummary',
@@ -77,6 +78,12 @@ export class UI {
     this._speakQueued = false;
     this._lastSpoken = '';
     this._flip = false;
+    this.egg = createEgg({
+      brand: document.querySelector('.brand'),
+      page: this.el.app,
+      canOpen: () => this.game.phase === PHASE.TITLE && !this.isModalOpen(),
+      onEnter: () => this.game.startExtra(),
+    });
     this._wire();
     if (this.loop) this.loop.onFrame = () => this.updatePowers();
     this.el.versionLabel.textContent = `v${APP_VERSION}`;
@@ -111,6 +118,7 @@ export class UI {
     click(el.resumeButton, () => game.resume());
     click(el.restartButton, () => game.restartLevel());
     click(el.pauseRestartButton, () => game.restartLevel());
+    click(el.leaveButton, () => game.enterTitle());
     click(el.soundButton, () => this.toggleSound());
     click(el.soundSwitch, () => this.toggleSound());
     click(el.hapticsSwitch, () => this.setHaptics(!this.storage.settings.haptics));
@@ -312,7 +320,7 @@ export class UI {
   renderHud() {
     const { el, game } = this;
     const h = game.hud();
-    el.levelLabel.textContent = pad2(h.level);
+    el.levelLabel.textContent = h.mode === 'extra' ? '00' : pad2(h.level);
     el.targetLabel.textContent = `${h.target}%`;
     el.areaLabel.textContent = `${h.cleared.toFixed(1)}%`;
     el.progressFill.style.width = `${Math.min(100, h.cleared)}%`;
@@ -570,8 +578,11 @@ export class UI {
     const { el, game } = this;
     const phase = game.phase;
     const paused = phase === PHASE.PAUSED || phase === PHASE.COUNTDOWN;
-    const daily = !!game.run && (game.run.mode === 'daily' || game.run.mode === 'tutorial');       // neither can be restarted
+    const extra = !!game.run && game.run.mode === 'extra';
+    const daily = !!game.run && (game.run.mode === 'daily' || game.run.mode === 'tutorial' || extra);       // none of them can be restarted
     el.app.dataset.phase = phase;
+    document.documentElement.toggleAttribute('data-extra', extra);
+    el.leaveButton.hidden = !extra;
 
     if (phase === PHASE.COUNTDOWN) {
       el.pauseEyebrow.textContent = 'Resuming';
@@ -632,6 +643,15 @@ export class UI {
   /* The win screen: what the level's captures scored, then each bonus. */
   renderTally(t) {
     const { el } = this;
+    if (t.extra) {
+      el.nextLabel.textContent = 'Back to title';
+      el.clearNote.hidden = true;
+      el.clearEyebrow.textContent = 'Sector 0 cleared';
+      el.clearTotal.textContent = 'Well played.';
+      fillRows(el.tally, [['Claimed', `${t.cleared.toFixed(1)}%`], ['Time', `${Math.round(t.seconds)} s`]]);
+      this.announce(`Sector 0 cleared in ${Math.round(t.seconds)} seconds`);
+      return;
+    }
     el.nextLabel.textContent = t.tutorial ? 'Play' : 'Next level';
     el.clearNote.hidden = !t.tutorial;
     if (t.tutorial) {

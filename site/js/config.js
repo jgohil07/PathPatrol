@@ -60,23 +60,21 @@ export const STORAGE_KEY = 'pathpatrol:v2';
 export const SNAPSHOT_KEY = 'pathpatrol:v2:run';      // a run in progress, separate from settings and records
 export const LEGACY_KEY = 'color-divide-records-v1';
 
-/* Difficulty curve. Speed is capped so a route is always outrunnable by a quick hand. */
-/* The difficulty curve. Up to level 12 it is the plan's: a patrol more every two levels, speed up 7 % a level, an
-   obstacle every two, a tracer every three from level 4, and the target rising from 65 % to 70 % by level 7. Measured with
-   bots in Phase 5.6 (research/tuning-*), every one of those hit its cap by level 11-14, so levels 12 and up were all the
-   same; the caps are now higher (8 patrols, 30 u/s, 6 obstacles, 4 tracers, and a target that goes on to 75 %), which
-   keeps the ramp going to about level 20 without making any level up to 12 different. */
+/* The difficulty curve: level n is always the same, for every player. Every knob moves a little at a time, so each level is
+   a touch harder than the one before: speed rises a little every level, the clear target a point every three, and a patrol
+   or an obstacle every five levels (edge tracers from level 5, a second at 14, a third at 23). It reaches its ceiling at level
+   31 (6 patrols at 26 u/s among 5 obstacles and 3 tracers, 75 % to clear) and stays there: hard, but a skilled player
+   can still clear it. Measured with bots (research/difficulty-curve-*): the chance of losing a route rises from about 0 on
+   level 1 to about 2 lives a level on level 30, without a jump anywhere on the way. */
 export function levelInfo(level) {
   const l = Math.max(1, Math.floor(level));
-  const early = Math.min(70, 65 + Math.floor((l - 1) / 2) * 2);       // 65 %, rising to 70 % by level 7
-  const late = Math.max(0, Math.floor((l - 10) / 3));                  // then a point more every three levels, from level 13
   return {
     level: l,
-    patrols: Math.min(8, 1 + Math.floor((l - 1) / 2)),
-    speed: Math.min(30, 14 * (1 + 0.07 * (l - 1))),
-    target: Math.min(75, early + late),
-    obstacles: Math.min(6, Math.floor((l - 1) / 2)),
-    tracers: Math.min(4, Math.floor((l - 1) / 3)),                     // none until level 4, then one more every three
+    patrols: Math.min(6, 1 + Math.floor((l - 1) / 5)),
+    speed: Math.min(26, 14 + 0.4 * (l - 1)),
+    target: Math.min(75, 65 + Math.floor((l - 1) / 3)),
+    obstacles: Math.min(5, Math.floor((l - 1) / 5)),
+    tracers: l < 5 ? 0 : Math.min(3, 1 + Math.floor((l - 5) / 9)),
     powerups: l >= 3,
   };
 }

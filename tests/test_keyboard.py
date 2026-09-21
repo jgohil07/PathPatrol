@@ -587,7 +587,7 @@ FUZZ = """
   for (const seed of arg.seeds) {
     const rnd = rngOf(seed * 104729 + 7);
     const game = new Game({ storage: createStorage(memoryBackend()) });
-    game.enterTitle(); game.newRun({ seed: 'keys-' + seed }); game.startLevel(1 + (seed % 7));
+    game.enterTitle(); game.newRun({ seed: 'keys-' + seed }); game.startLevel(1 + (seed % 7) * 4);
     out.games++;
     const { route, pilot, grid } = game;
     const save = game.persist.bind(game);
@@ -598,7 +598,7 @@ FUZZ = """
     let rotated = seed % 2 === 1;
     for (let i = 0; i < 3000; i++) {
       game.step(STEP); out.steps++;
-      if (game.phase === 'over') { game.newRun({ seed: 'keys-' + seed + '-' + i }); game.startLevel(1 + Math.floor(rnd() * 6)); down.clear(); continue; }
+      if (game.phase === 'over') { game.newRun({ seed: 'keys-' + seed + '-' + i }); game.startLevel(1 + Math.floor(rnd() * 6) * 5); down.clear(); continue; }
       if (game.phase === 'clear' && rnd() < 0.05) game.skipClear();
       const roll = rnd();
       if (roll < 0.03) { const [key, dx, dy] = KEYS[Math.floor(rnd() * KEYS.length)]; const b = screenDirToBoard(rotated, dx, dy); if (pilot.press(key, b.x, b.y, false) || true) { down.add(key); out.presses++; } }

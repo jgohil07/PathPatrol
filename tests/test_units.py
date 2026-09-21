@@ -73,7 +73,7 @@ def test_daily_board_contract_is_pinned(page):
 
 
 def test_rng_helpers(page):
-    got = page.evaluate("""async () => { const { Rng, randomSeed } = await import('/js/rng.js');
+    got = page.evaluate("""async () => { const { Rng } = await import('/js/rng.js');
       const a = new Rng('x'), b = new Rng('x'), c = new Rng('y');
       const seq = (r) => Array.from({ length: 6 }, () => r.float());
       const ri = new Rng('ints'); const ints = Array.from({ length: 500 }, () => ri.int(3, 7));
@@ -81,34 +81,65 @@ def test_rng_helpers(page):
       const rr = new Rng('range'); const ranges = Array.from({ length: 200 }, () => rr.range(-2, 5));
       return { same: JSON.stringify(seq(a)) === JSON.stringify(seq(b)), differs: JSON.stringify(seq(new Rng('x'))) !== JSON.stringify(seq(c)),
                intsOk: ints.every((n) => n >= 3 && n < 7 && Number.isInteger(n)) && new Set(ints).size === 4, picks: [...picks].sort(),
-               rangeOk: ranges.every((v) => v >= -2 && v < 5), seedA: randomSeed(), seedB: randomSeed() }; }""")
+               rangeOk: ranges.every((v) => v >= -2 && v < 5) }; }""")
     assert got['same'] and got['differs'] and got['intsOk'] and got['rangeOk']
     assert got['picks'] == ['a', 'b', 'c']
-    assert got['seedA'] and got['seedA'] != got['seedB']
 
 
 # ---- config ------------------------------------------------------------------------------------
 def test_level_curve(page):
-    levels = [1, 2, 3, 4, 7, 10, 11, 12, 13, 15, 16, 19, 22, 25, 30, 99]
+    levels = [1, 2, 3, 4, 5, 6, 10, 11, 14, 15, 16, 21, 23, 26, 31, 40, 99]
     infos = page.evaluate("async (levels) => { const { levelInfo } = await import('/js/config.js'); return levels.map(levelInfo); }", levels)
     for level, info in zip(levels, infos):
         assert info['level'] == level
-        assert info['patrols'] == min(8, 1 + (level - 1) // 2)
-        assert info['obstacles'] == min(6, (level - 1) // 2)
-        early = min(70, 65 + ((level - 1) // 2) * 2)
-        assert info['target'] == min(75, early if level <= 10 else 70 + (level - 10) // 3)
-        assert info['tracers'] == (min(4, (level - 1) // 3) if level >= 4 else 0)
-        assert info['speed'] == pytest.approx(min(30, 14 * (1 + 0.07 * (level - 1))))
-    assert max(i['speed'] for i in infos) == 30          # capped: D7
-    # Written out, so that a change to the curve is a decision and not a side effect: the plan's numbers up to level 12
-    # (which the measured difficulty curve was built on), then the extended ramp.
-    table = {1: (1, 65, 0, 0), 2: (1, 65, 0, 0), 3: (2, 67, 1, 0), 4: (2, 67, 1, 1), 7: (4, 70, 3, 2), 10: (5, 70, 4, 3),
-             11: (6, 70, 5, 3), 12: (6, 70, 5, 3), 13: (7, 71, 6, 4), 15: (8, 71, 6, 4), 16: (8, 72, 6, 4), 19: (8, 73, 6, 4), 22: (8, 74, 6, 4), 25: (8, 75, 6, 4), 99: (8, 75, 6, 4)}
-    for level, (patrols, target, obstacles, tracers) in table.items():
+        assert info['patrols'] == min(6, 1 + (level - 1) // 5)
+        assert info['obstacles'] == min(5, (level - 1) // 5)
+        assert info['target'] == min(75, 65 + (level - 1) // 3)
+        assert info['tracers'] == (min(3, 1 + (level - 5) // 9) if level >= 5 else 0)
+        assert info['speed'] == pytest.approx(min(26, 14 + 0.4 * (level - 1)))
+        assert info['powerups'] == (level >= 3)
+    # Written out, so that a change to the curve is a decision and not a side effect. These are the numbers the difficulty
+    # was measured on (research/difficulty-curve-*): (patrols, target %, obstacles, tracers, speed u/s).
+    table = {1: (1, 65, 0, 0, 14), 2: (1, 65, 0, 0, 14.4), 3: (1, 65, 0, 0, 14.8), 4: (1, 66, 0, 0, 15.2), 5: (1, 66, 0, 1, 15.6),
+             6: (2, 66, 1, 1, 16), 10: (2, 68, 1, 1, 17.6), 11: (3, 68, 2, 1, 18), 14: (3, 69, 2, 2, 19.2), 15: (3, 69, 2, 2, 19.6),
+             16: (4, 70, 3, 2, 20), 21: (5, 71, 4, 2, 22), 23: (5, 72, 4, 3, 22.8), 26: (6, 73, 5, 3, 24), 31: (6, 75, 5, 3, 26),
+             40: (6, 75, 5, 3, 26), 99: (6, 75, 5, 3, 26)}
+    for level, (patrols, target, obstacles, tracers, speed) in table.items():
         info = infos[levels.index(level)]
         assert (info['patrols'], info['target'], info['obstacles'], info['tracers']) == (patrols, target, obstacles, tracers), level
+        assert info['speed'] == pytest.approx(speed), level
+
+
+def test_the_curve_never_gets_easier_and_climbs_a_little_every_level_until_its_ceiling(page):
+    infos = page.evaluate("async () => { const { levelInfo } = await import('/js/config.js'); return Array.from({ length: 60 }, (_, i) => levelInfo(i + 1)); }")
+    knobs = ('patrols', 'speed', 'target', 'obstacles', 'tracers')
+    for before, after in zip(infos, infos[1:]):
+        assert all(after[k] >= before[k] for k in knobs), (before['level'], 'a knob went back down')
+        if after['level'] <= 31:
+            assert any(after[k] > before[k] for k in knobs), (after['level'], 'no harder than the level before')
+    # ...and it stops: no level past 31 is harder than 31, so nothing beyond what was measured as playable is ever asked.
+    assert all(all(i[k] == infos[30][k] for k in knobs) for i in infos[30:])
+    assert infos[30]['level'] == 31 and infos[29]['speed'] < infos[30]['speed']
     odd = page.evaluate("async () => { const { levelInfo } = await import('/js/config.js'); return [levelInfo(0).level, levelInfo(2.7).level, levelInfo(-5).level]; }")
     assert odd == [1, 2, 1]
+
+
+def test_an_ordinary_run_is_the_same_board_for_everyone(page):
+    got = page.evaluate("""async () => {
+      const { CAMPAIGN_SEED } = await import('/js/rng.js');
+      const { buildLevel } = await import('/js/level.js');
+      const { Grid } = await import('/js/grid.js');
+      const snap = (n, seed) => { const g = new Grid(); const l = buildLevel(n, seed, g); return JSON.stringify({ p: l.patrols.map((q) => [q.x, q.y, q.vx, q.vy]), o: l.obstacles }); };
+      const same = [], other = [];
+      for (let n = 1; n <= 40; n++) { same.push(snap(n, CAMPAIGN_SEED) === snap(n, CAMPAIGN_SEED)); other.push(snap(n, CAMPAIGN_SEED) !== snap(n, 'pathpatrol-daily-2026-09-19')); }
+      const board = (n) => { __pp.game.newRun(); __pp.game.startLevel(n); return JSON.stringify({ p: __pp.game.level.patrols.map((q) => [q.x, q.y]), o: __pp.game.level.obstacles }); };
+      const runs = [board(1), board(1), board(1)], deep = [board(14), board(14)];
+      return { seed: CAMPAIGN_SEED, same: same.every(Boolean), other: other.every(Boolean), runs, deep, runSeed: __pp.game.run.seed };
+    }""")
+    assert got['seed'] == 'pathpatrol-campaign' and got['runSeed'] == 'pathpatrol-campaign'      # pinned: changing it changes every player's levels
+    assert got['same'] and got['other']
+    assert got['runs'][0] == got['runs'][1] == got['runs'][2]                                    # three runs, one level 1
+    assert got['deep'][0] == got['deep'][1] and '"o":[{' in got['deep'][0]                        # ...and level 14, obstacles included
 
 
 # ---- grid --------------------------------------------------------------------------------------

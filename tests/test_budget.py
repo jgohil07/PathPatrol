@@ -40,9 +40,9 @@ VIEWS = [('desktop', dict(viewport={'width': 1280, 'height': 800}, dpr=1)),
 
 @pytest.mark.parametrize('name,options', VIEWS, ids=[v[0] for v in VIEWS])
 def test_a_busy_late_level_stays_inside_the_frame_budget(open_page, name, options):
-    """Level 12: six patrols, three tracers, obstacles, real time for eight seconds, on a big and a small dense screen."""
+    """Level 31, the hardest the curve gets: six patrols, three tracers, five obstacles, real time for eight seconds, on a big and a small dense screen."""
     page = open_page(**options)
-    page.evaluate("__pp.game.newRun({ seed: 'busy' }); __pp.game.startLevel(12); 0")
+    page.evaluate("__pp.game.newRun({ seed: 'busy' }); __pp.game.startLevel(31); 0")
     info = page.evaluate('({ patrols: __pp.state().patrols.length, tracers: __pp.game.tracers.list.length })')
     assert info == {'patrols': 6, 'tracers': 3}
     windows = []
