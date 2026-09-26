@@ -133,3 +133,9 @@ playwright-report/
 # Research notes and downloaded reference material (global rule 7).
 # Ask before tracking: vendored third-party material may carry licence terms.
 research/
+
+# Assistant working notes (global rule 3): lessons, tasks, analysis
+tasks/
+lessons*.md
+analysis-*.md
+*-analysis-*.md
