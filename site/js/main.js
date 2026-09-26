@@ -14,6 +14,7 @@ import { installInputMode, installKeyboard, installPointer } from './input.js';
 const debug = new URLSearchParams(location.search).has('debug');
 
 const STATS_WINDOW_MS = 500;
+const HIT_STOP_MS = 70;
 
 /* Fixed-step simulation with interpolated drawing: motion is identical at 60, 90, 120 or 144 Hz.
    loop.stats is refreshed twice a second: frames per second and the script time one frame costs
@@ -28,13 +29,21 @@ function startLoop({ game, renderer, sound }) {
     stats: { fps: 0, avgMs: 0, maxMs: 0 },
     onStats: null,
     onFrame: null,                     // called every frame before drawing (the HUD's power-up chips)
+    holdUntil: -Infinity,              // the hit-stop: the simulation holds still until then (performance.now time)
   };
+
+  /* A hit-stop on the moments that matter, a patrol trapped and a life lost: the board holds still for HIT_STOP_MS so
+     the moment lands. Presentation only: it simply skips steps here, so the game clock, its scheduler and every saved
+     run never see it, and tests that step the game by hand (__pp.step) are unaffected. Not with reduced motion. */
+  const hold = () => { if (!renderer.reducedMotion) loop.holdUntil = performance.now() + HIT_STOP_MS; };
+  game.on('trap', hold);
+  game.on('life', hold);
 
   function work(dt) {
     game.tick(dt);
     sound.update();                                     // the drawing hum follows the route, frame by frame
     if (loop.onFrame) loop.onFrame();
-    if (loop.frozen || !game.isStepping()) {
+    if (loop.frozen || !game.isStepping() || performance.now() < loop.holdUntil) {
       acc = 0;
     } else {
       acc += dt;

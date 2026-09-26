@@ -4,7 +4,7 @@
    Every delayed action goes through the Scheduler below, which only advances while the game is
    actually running, so pausing freezes it and restarting cancels it. The prototype used setTimeout and
    paid for it: a restarted level could "win itself" and a pause could be overridden. */
-import { START_LIVES, MAX_LIVES, LEVEL_CLEAR_DELAY, CLEAR_SKIP_AFTER, RESUME_COUNTDOWN, CELLS_PER_UNIT, SCORE, TUTORIAL, levelInfo } from './config.js';
+import { START_LIVES, MAX_LIVES, LEVEL_CLEAR_DELAY, CLEAR_SKIP_AFTER, RESUME_COUNTDOWN, CELLS_PER_UNIT, SCORE, TUTORIAL, TRAP, trapMultiplier, levelInfo } from './config.js';
 import { Grid, FIELD, WALL, ROUTE, SOLID_MASK, ROUTE_MASK, toCell } from './grid.js';
 import { buildLevel } from './level.js';
 import { buildExtraLevel } from './egg.js';
@@ -196,7 +196,7 @@ export class Game extends Emitter {
     const records = this.storage.records;
     this.run = {
       seed, mode, dayKey: day, practice, lives: START_LIVES, score: 0, combo: 1, nextLifeAt: SCORE.extraLifeEvery,
-      stats: { captures: 0, closeCalls: 0, levelsCleared: 0 },
+      stats: { captures: 0, closeCalls: 0, levelsCleared: 0, traps: 0 },
       best0: { score: records.bestScore, clear: records.bestClear, level: records.bestLevel },   // for the "new best" flags
     };
     this.report = null;
@@ -232,7 +232,7 @@ export class Game extends Emitter {
     const records = this.storage.records;
     this.run = {
       seed: 'tutorial', mode: 'tutorial', lives: START_LIVES, score: 0, combo: 1, nextLifeAt: SCORE.extraLifeEvery,
-      stats: { captures: 0, closeCalls: 0, levelsCleared: 0 },
+      stats: { captures: 0, closeCalls: 0, levelsCleared: 0, traps: 0 },
       best0: { score: records.bestScore, clear: records.bestClear, level: records.bestLevel },
     };
     this.report = null;
@@ -277,7 +277,7 @@ export class Game extends Emitter {
     const records = this.storage.records;
     this.run = {
       seed: 'extra', mode: 'extra', lives: START_LIVES, score: 0, combo: 1, nextLifeAt: SCORE.extraLifeEvery,
-      stats: { captures: 0, closeCalls: 0, levelsCleared: 0 },
+      stats: { captures: 0, closeCalls: 0, levelsCleared: 0, traps: 0 },
       best0: { score: records.bestScore, clear: records.bestClear, level: records.bestLevel },
     };
     this.report = null;
@@ -428,17 +428,20 @@ export class Game extends Emitter {
 
   /* Points are banked here and nowhere else, so a route that is cancelled or hit never scores. Returns the
      breakdown for the popup and the announcer. */
-  _scoreCapture(run, gained, closeCalls) {
+  _scoreCapture(run, gained, closeCalls, trapped = 0) {
     const { level } = this;
     const units = ((gained / 100) * level.initialPlayable) / (CELLS_PER_UNIT * CELLS_PER_UNIT);
     const combo = run.combo;
     const size = gained >= SCORE.bigCapture.percent ? SCORE.bigCapture.multiplier : 1;
-    const capturePoints = Math.round(units * combo * size);
+    const trapMult = trapMultiplier(run.stats.traps);          // earned by earlier traps; this capture's own traps count from the next
+    const capturePoints = Math.round(units * combo * size * trapMult);
     const closePoints = Math.round(closeCalls * SCORE.closeCall.points * combo);
+    const trapPoints = Math.round(trapped * TRAP.points * combo);
     run.stats.captures++;
     run.stats.closeCalls += closeCalls;
+    run.stats.traps += trapped;
     if (gained >= SCORE.combo.minGain) run.combo = Math.min(SCORE.combo.max, combo + SCORE.combo.step);
-    return { combo, nextCombo: run.combo, capturePoints, closePoints, points: capturePoints + closePoints };
+    return { combo, nextCombo: run.combo, capturePoints, closePoints, trapPoints, trapMult, points: capturePoints + closePoints + trapPoints };
   }
 
   /* Adds points, keeps the best score, and grants an extra life at every threshold (none beyond MAX_LIVES,
@@ -470,7 +473,9 @@ export class Game extends Emitter {
       if (v === FIELD || v === ROUTE) grid.cells[i] = WALL;
     }
     const before = grid.countField();
-    grid.claimUnreachable(this._patrolSeeds());
+    grid.claimUnreachable(this._patrolSeeds().flat());
+    const real = !!this.run && this.run.mode !== 'tutorial' && this.run.mode !== 'extra';                 // the tutorial and the extra board are practice: no score, no records, no save, no traps
+    const trapped = real ? this._trap() : [];
     settle(level.patrols, grid);                 // a patrol brushing the new wall is moved clear of it
     this.tracers.refresh();                      // the boundary moved: trace it again and put each tracer back on it
     this.powerups.afterCapture();                // ground that swallowed a pickup takes it
@@ -479,9 +484,15 @@ export class Game extends Emitter {
     if (polyline) level.routes.push(polyline);
     level.cleared = ((level.initialPlayable - after) / level.initialPlayable) * 100;
     const gained = level.cleared - previous;
-    const result = { percent: level.cleared, gained, cellsClaimed: before - after, points: 0, capturePoints: 0, closePoints: 0, closeCalls, combo: 1, nextCombo: 1, route: polyline || null };
-    const real = !!this.run && this.run.mode !== 'tutorial' && this.run.mode !== 'extra';                 // the tutorial and the extra board are practice: no score, no records, no save
-    if (real) Object.assign(result, this._scoreCapture(this.run, gained, closeCalls));
+    const result = { percent: level.cleared, gained, cellsClaimed: before - after, points: 0, capturePoints: 0, closePoints: 0, closeCalls, combo: 1, nextCombo: 1,
+                     trapped: trapped.length, trapPoints: 0, trapMult: 1, route: polyline || null };
+    if (real) Object.assign(result, this._scoreCapture(this.run, gained, closeCalls, trapped.length));
+    if (trapped.length) {
+      const sweep = level.patrols.length === 0;                // the last one: the whole board is claimed
+      this.emit('trap', { patrols: trapped, points: result.trapPoints, multiplier: trapMultiplier(this.run.stats.traps), sweep });
+      const who = trapped.length === 1 ? 'Patrol trapped' : `${trapped.length} patrols trapped`;
+      this.toast(`${sweep ? 'Clean sweep · ' : ''}${who} · +${result.trapPoints.toLocaleString('en-US')}`, 1600);
+    }
     if (real) this.storage.updateRecords((r) => { r.bestClear = Math.max(r.bestClear, level.cleared); });
     this.emit('capture', result);
     if (real) this._addScore(result.points);
@@ -492,12 +503,14 @@ export class Game extends Emitter {
     return result;
   }
 
-  /* Open cells a patrol stands in. A patrol brushing a fresh wall may have its centre inside it, so
-     fall back to every open cell under its disc; an area a patrol touches is never claimed. */
+  /* Open cells each patrol stands in, one list per patrol. A patrol brushing a fresh wall may have its centre inside it,
+     so fall back to every open cell under its disc; an area a patrol touches is never claimed. */
   _patrolSeeds() {
     const { grid } = this;
-    const seeds = [];
+    const groups = [];
     for (const p of this.level.patrols) {
+      const seeds = [];
+      groups.push(seeds);
       const cx = toCell(p.x), cy = toCell(p.y);
       if (grid.get(cx, cy) === FIELD) { seeds.push(grid.index(cx, cy)); continue; }
       const r = Math.ceil(p.r * CELLS_PER_UNIT);
@@ -507,7 +520,27 @@ export class Game extends Emitter {
         }
       }
     }
-    return seeds;
+    return groups;
+  }
+
+  /* After a capture: every patrol left in a pocket of open ground no bigger than TRAP.maxShare of the level is grounded.
+     It leaves the level and its pocket is claimed (with no patrol left, that is the whole board). Returns the grounded
+     patrols as { x, y, kind }, in their order on the level. */
+  _trap() {
+    const { grid, level } = this;
+    const { sizes, owner } = grid.regions(this._patrolSeeds());
+    const limit = TRAP.maxShare * level.initialPlayable;
+    const trapped = [];
+    const kept = [];
+    level.patrols.forEach((p, i) => {
+      if (sizes[owner[i]] <= limit) trapped.push({ x: p.x, y: p.y, kind: p.kind || 'standard' });
+      else kept.push(p);
+    });
+    if (!trapped.length) return trapped;
+    level.patrols.length = 0;
+    level.patrols.push(...kept);
+    grid.claimUnreachable(this._patrolSeeds().flat());
+    return trapped;
   }
 
   /* The win screen: what the level's captures scored, then bonuses for finishing above the target, for the
@@ -616,6 +649,7 @@ export class Game extends Emitter {
       lives: this.run ? this.run.lives : START_LIVES,
       score: this.run ? this.run.score : 0,
       combo: this.run ? this.run.combo : 1,
+      trapMult: this.run && this.run.stats ? trapMultiplier(this.run.stats.traps || 0) : 1,
       target: level ? level.info.target : first.target,
       cleared: level ? level.cleared : 0,
       patrols: level ? level.patrols.length : first.patrols,

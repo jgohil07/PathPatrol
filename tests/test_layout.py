@@ -102,8 +102,8 @@ def test_every_screen_size_lays_out_cleanly(open_page, engine, name, width, heig
     page.evaluate('__pp.setPatrols([{ x: 100, y: 60, vx: 6, vy: 4 }]); __pp.cutLine("v", 40)')     # some claimed ground to look at
     check(page.evaluate(MEASURE), touch, f'{name} playing')
     shot('2-playing')
-    # The widest the HUD gets: a seven-digit score, the top combo, and all five lives.
-    page.evaluate('__pp.game.run.score = 1234567; __pp.game.run.combo = 3; __pp.game.run.lives = 5; __pp.game.emit("hud")')
+    # The widest the HUD gets: a seven-digit score, the top combo with the top trap multiplier, and all five lives.
+    page.evaluate('__pp.game.run.score = 1234567; __pp.game.run.combo = 3; __pp.game.run.lives = 5; __pp.game.run.stats.traps = 4; __pp.game.emit("hud")')
     settle(page)
     check(page.evaluate(MEASURE), touch, f'{name} playing, widest HUD')
     shot('2b-widest-hud')

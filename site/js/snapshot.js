@@ -11,7 +11,7 @@ import { GRID_W, GRID_H, BOARD_W, BOARD_H, APP_VERSION, MAX_LIVES, SCORE, levelI
 import { POWER } from './powerups.js';
 import { FIELD, WALL, BORDER, ROUTE } from './grid.js';
 
-export const SNAPSHOT_VERSION = 2;          // 2: the difficulty curve changed and ordinary runs share one seed, so a run saved under 1 is a different game
+export const SNAPSHOT_VERSION = 3;          // 2: the difficulty curve changed and ordinary runs share one seed; 3: traps (a run's trap count, levels with no patrol left)
 export const SNAPSHOT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 const CLOCK_SKEW_MS = 60 * 60 * 1000;         // a save stamped further ahead than this is not believed
 const MAX_PATROLS = 8;
@@ -88,8 +88,8 @@ export function takeSnapshot(game, now = Date.now()) {
 /* --- validating one --------------------------------------------------------------------------------------- */
 
 function cleanStats(s) {
-  if (!isObject(s) || !isCount(s.captures) || !isCount(s.closeCalls) || !isCount(s.levelsCleared)) return null;
-  return { captures: s.captures, closeCalls: s.closeCalls, levelsCleared: s.levelsCleared };
+  if (!isObject(s) || !isCount(s.captures) || !isCount(s.closeCalls) || !isCount(s.levelsCleared) || !isCount(s.traps)) return null;
+  return { captures: s.captures, closeCalls: s.closeCalls, levelsCleared: s.levelsCleared, traps: s.traps };
 }
 
 /* The power-up state: an optional pickup, when the next comes, which kind, timers left and how many random values each
@@ -144,7 +144,7 @@ export function validateSnapshot(raw, { now = Date.now(), today = null } = {}) {
   if (!startStats || !isCount(raw.scoreAtStart) || raw.scoreAtStart > r.score) return null;
   if (!Number.isFinite(raw.clock) || raw.clock < 0 || raw.clock > 24 * 3600) return null;
   if (!Array.isArray(raw.grid) || !Array.isArray(raw.patrols) || !Array.isArray(raw.routes)) return null;
-  if (raw.patrols.length < 1 || raw.patrols.length > MAX_PATROLS) return null;
+  if (raw.patrols.length > MAX_PATROLS) return null;                          // (none at all is fine: a trap can take the last one)
   const patrols = [];
   for (const p of raw.patrols) {
     if (!Array.isArray(p) || p.length !== 5 || !p.every(Number.isFinite)) return null;

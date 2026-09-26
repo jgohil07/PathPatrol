@@ -110,28 +110,59 @@ export class Grid {
   circleHitsSolid(cx, cy, r) { return this.circleTouches(cx, cy, r, SOLID_MASK); }
   circleHitsRoute(cx, cy, r) { return this.circleTouches(cx, cy, r, ROUTE_MASK); }
 
-  /* Flood-fills open ground (4-connected) from the seed cell indices, then turns every open cell the
-     fill could not reach into WALL. Returns the number of cells claimed. */
-  claimUnreachable(seeds) {
-    const { cells, w, _queue: queue, _seen: seen } = this;
+  /* Spreads over open ground (4-connected) from the cells already in the queue [0, tail), writing `value` into `mark`
+     for every cell reached. The seeds must already carry `value`. Returns the new tail: the queue holds every cell reached. */
+  _flood(mark, value, tail) {
+    const { cells, w, _queue: queue } = this;
     const last = cells.length - w;
-    seen.fill(0);
-    let head = 0, tail = 0;
-    for (const i of seeds) {
-      if (cells[i] === FIELD && !seen[i]) { seen[i] = 1; queue[tail++] = i; }
-    }
+    let head = 0;
     while (head < tail) {
       const i = queue[head++];
       const x = i % w;
-      if (x > 0 && cells[i - 1] === FIELD && !seen[i - 1]) { seen[i - 1] = 1; queue[tail++] = i - 1; }
-      if (x < w - 1 && cells[i + 1] === FIELD && !seen[i + 1]) { seen[i + 1] = 1; queue[tail++] = i + 1; }
-      if (i >= w && cells[i - w] === FIELD && !seen[i - w]) { seen[i - w] = 1; queue[tail++] = i - w; }
-      if (i < last && cells[i + w] === FIELD && !seen[i + w]) { seen[i + w] = 1; queue[tail++] = i + w; }
+      if (x > 0 && cells[i - 1] === FIELD && mark[i - 1] !== value) { mark[i - 1] = value; queue[tail++] = i - 1; }
+      if (x < w - 1 && cells[i + 1] === FIELD && mark[i + 1] !== value) { mark[i + 1] = value; queue[tail++] = i + 1; }
+      if (i >= w && cells[i - w] === FIELD && mark[i - w] !== value) { mark[i - w] = value; queue[tail++] = i - w; }
+      if (i < last && cells[i + w] === FIELD && mark[i + w] !== value) { mark[i + w] = value; queue[tail++] = i + w; }
     }
+    return tail;
+  }
+
+  /* Flood-fills open ground (4-connected) from the seed cell indices, then turns every open cell the
+     fill could not reach into WALL. Returns the number of cells claimed. */
+  claimUnreachable(seeds) {
+    const { cells, _queue: queue, _seen: seen } = this;
+    seen.fill(0);
+    let tail = 0;
+    for (const i of seeds) {
+      if (cells[i] === FIELD && !seen[i]) { seen[i] = 1; queue[tail++] = i; }
+    }
+    this._flood(seen, 1, tail);
     let claimed = 0;
     for (let i = 0; i < cells.length; i++) {
       if (cells[i] === FIELD && !seen[i]) { cells[i] = WALL; claimed++; }
     }
     return claimed;
+  }
+
+  /* The open regions that groups of seed cells stand in (a group per patrol). Returns { sizes, owner }: sizes[k] is the
+     number of open cells in region k, owner[g] the region of group g. A group with no open cell has a region of size 0.
+     Regions are disjoint, so each flood can only ever meet cells of its own. */
+  regions(groups) {
+    const { cells, _queue: queue } = this;
+    const label = this._label || (this._label = new Int32Array(cells.length));
+    label.fill(-1);
+    const sizes = [], owner = [];
+    for (const group of groups) {
+      let region = -1;
+      for (const i of group) if (label[i] >= 0) { region = label[i]; break; }
+      if (region < 0) {
+        region = sizes.length;
+        let tail = 0;
+        for (const i of group) if (cells[i] === FIELD && label[i] < 0) { label[i] = region; queue[tail++] = i; }
+        sizes.push(this._flood(label, region, tail));
+      }
+      owner.push(region);
+    }
+    return { sizes, owner };
   }
 }

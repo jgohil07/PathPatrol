@@ -328,8 +328,9 @@ export class UI {
     const word = this.storage.settings.theme === 'flight' ? 'PLANE' : 'CAR';
     el.runnerLabel.textContent = `${h.patrols} ${word}${h.patrols === 1 ? '' : 'S'}`;
     el.scoreLabel.textContent = number(h.score);
-    el.comboLabel.textContent = `x${h.combo.toFixed(2)}`;
-    el.comboLabel.classList.toggle('on', h.combo > 1);
+    // The combo, and once a patrol has been trapped the run's trap multiplier beside it (both apply to a capture).
+    el.comboLabel.textContent = h.trapMult > 1 ? `x${h.combo.toFixed(2)} · trap x${h.trapMult.toFixed(2)}` : `x${h.combo.toFixed(2)}`;
+    el.comboLabel.classList.toggle('on', h.combo > 1 || h.trapMult > 1);
 
     const total = Math.max(START_LIVES, h.lives);
     const key = `${total}:${h.lives}`;

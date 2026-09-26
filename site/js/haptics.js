@@ -8,6 +8,7 @@ const PATTERNS = {
   medium: [12],
   large: [10, 30, 16],
   extraLife: [15, 40, 15],
+  trap: [30, 20, 12, 20, 12],
   clear: [20, 30, 20, 30, 40],
   over: [60, 40, 60],
 };
@@ -21,6 +22,7 @@ export class Haptics {
       else if (event.type === 'closecall') this.pulse('closecall');
     });
     game.on('capture', (result) => this.pulse(result.gained >= 10 ? 'large' : result.gained >= 2 ? 'medium' : 'small'));
+    game.on('trap', () => this.pulse('trap'));
     game.on('extraLife', () => this.pulse('extraLife'));
     game.on('power', (event) => { if (event.type === 'start') this.pulse('medium'); });
     game.on('clear', () => this.pulse('clear'));

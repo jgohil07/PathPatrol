@@ -34,6 +34,13 @@ export const SCORE = Object.freeze({
   extraLifeEvery: 25000,
 });
 
+/* Trapping: a capture that leaves a patrol shut in a pocket of open ground no bigger than maxShare of the level's playable
+   area grounds it. The pocket is claimed, the patrol leaves the level, and it pays `points` x combo. Each patrol trapped
+   also raises the run's trap multiplier on every later capture by multStep, up to multCap (Qix's split bonus compounds the
+   same way). Trapping the last patrol claims the whole board. */
+export const TRAP = Object.freeze({ maxShare: 0.04, points: 1500, multStep: 0.25, multCap: 2 });
+export const trapMultiplier = (traps) => Math.min(TRAP.multCap, 1 + TRAP.multStep * traps);
+
 /* The tutorial: one slow patrol on level 1's board and three coached steps. */
 /* Drawing with the keyboard: the cursor moves 4-directionally at this speed, through the same route engine as a pointer.
    A swipe crosses the board in a fraction of a second; this takes a few seconds, which is what makes it the slower way. */

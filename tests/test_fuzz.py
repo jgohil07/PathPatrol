@@ -15,7 +15,7 @@ FUZZ = """
   const rngOf = (seed) => { let s = seed >>> 0; return () => (s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296; };
   const out = { games: 0, steps: 0, actions: 0, routesStarted: 0, closed: 0, lifted: 0, hits: 0, captures: 0, restarts: 0, pauses: 0,
                 levelsCleared: 0, gameOvers: 0, shallow: 0, extraLives: 0, skips: 0, combosBroken: 0, tracerChases: 0, tracerCatches: 0, tracerLevels: 0, contourChecks: 0, saves: 0, dailyGames: 0, dailyOvers: 0, dailyCounted: 0, dailyPractice: 0,
-                spawns: 0, expired: 0, freeze: 0, shield: 0, slow: 0, frozenChecks: 0, shieldedChecks: 0, slowChecks: 0, problems: [] };
+                spawns: 0, expired: 0, traps: 0, sweeps: 0, freeze: 0, shield: 0, slow: 0, frozenChecks: 0, shieldedChecks: 0, slowChecks: 0, problems: [] };
   const note = (m) => { if (out.problems.length < 6) out.problems.push(m); };
 
   for (const seed of arg.seeds) {
@@ -31,6 +31,7 @@ FUZZ = """
     const route = game.route; let clearedInLevel = 0, lastLevel = game.level;
     let lastRun = null, granted = 0, lastScore = 0;                  // extra lives granted in this run; the score a level has reached
     game.on('extraLife', () => { granted++; out.extraLives++; });
+    game.on('trap', (e) => { out.traps += e.patrols.length; if (e.sweep) out.sweeps++; });
     game.on('combo', (c) => { if (c.broken) out.combosBroken++; });
     let frozenFor = null;                                             // patrol and tracer positions while a freeze holds (between captures)
     game.on('power', (e) => { if (e.type === 'spawn') out.spawns++; else if (e.type === 'expire') out.expired++; else if (e.type === 'start') out[e.kind]++; });
@@ -168,4 +169,5 @@ def test_a_bot_plays_hundreds_of_games_without_breaking_any_invariant(open_page)
     assert got['spawns'] >= 20 and got['freeze'] >= 3 and got['shield'] >= 2 and got['slow'] >= 2        # every kind of power-up was taken...
     assert got['frozenChecks'] > 500 and got['shieldedChecks'] > 200 and got['slowChecks'] > 200          # ...and the invariants were checked while each held
     assert got['saves'] > 300                                           # and every save the games made was read back by the game's own check
+    assert got['traps'] >= 5                                            # patrols were trapped (16 on these seeds), so every check above also held on levels that lost one
     assert got['dailyGames'] == 8 and got['dailyOvers'] >= 4 and got['dailyCounted'] >= 2 and got['dailyPractice'] >= 2     # a third were dailies, and ended both ways

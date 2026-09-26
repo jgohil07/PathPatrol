@@ -117,6 +117,12 @@ export class Sound {
   }
 
   clear() { [0, 4, 7, 12, 16].forEach((n, i) => this._tone({ freq: C5 * semitones(n), dur: 0.2, gain: 0.14, at: i * 0.09 })); }
+  /* A patrol trapped: a falling glide (it is grounded) under a bright two-note lock. */
+  trap() {
+    this._tone({ freq: 660, dur: 0.32, gain: 0.1, type: 'triangle', glide: 220 });
+    this._tone({ freq: C5 * semitones(7), dur: 0.12, gain: 0.12, at: 0.08 });
+    this._tone({ freq: C5 * semitones(12), dur: 0.18, gain: 0.13, at: 0.16 });
+  }
   over() { [7, 4, 0].forEach((n, i) => this._tone({ freq: (C5 / 2) * semitones(n), dur: 0.28, gain: 0.13, type: 'triangle', at: i * 0.2 })); }
 
   /* --- the drawing hum ---------------------------------------------------------------------------- */
@@ -173,6 +179,7 @@ export class Sound {
     game.on('tracer', (event) => { if (event.type === 'chase') this.ping(); });
     game.on('power', (event) => { if (event.type === 'start') this.pickup(); else if (event.type === 'end') this.lifted(); });
     game.on('capture', (result) => this.chime(result.gained, result.combo));
+    game.on('trap', () => this.trap());
     game.on('extraLife', () => this.extraLife());
     game.on('clear', () => this.clear());
     game.on('over', () => this.over());

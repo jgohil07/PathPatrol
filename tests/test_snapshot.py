@@ -96,7 +96,7 @@ def test_a_snapshot_is_accepted_only_when_every_field_is_sound(page):
       const accepts = (raw, o = opts) => snap.validateSnapshot(raw, o) !== null;
       const out = { good: accepts(good), rejected: {}, accepted: {} };
       const bad = {
-        'version': (c) => { c.v = 3; }, 'the previous version, saved under the old curve': (c) => { c.v = 1; }, 'the extra board': (c) => { c.mode = 'extra'; }, 'app major': (c) => { c.app = '2.0.0'; }, 'app not text': (c) => { c.app = 5; },
+        'version': (c) => { c.v = 4; }, 'the previous version, saved before traps': (c) => { c.v = 2; }, 'the first version, saved under the old curve': (c) => { c.v = 1; }, 'the extra board': (c) => { c.mode = 'extra'; }, 'app major': (c) => { c.app = '2.0.0'; }, 'app not text': (c) => { c.app = 5; },
         'older than 24 h': (c) => { c.savedAt = now - 24 * HOUR - 1; }, 'from the future': (c) => { c.savedAt = now + HOUR + 1; }, 'no time': (c) => { c.savedAt = NaN; },
         'unknown mode': (c) => { c.mode = 'x'; }, 'the tutorial': (c) => { c.mode = 'tutorial'; }, 'empty seed': (c) => { c.seed = ''; }, 'numeric seed': (c) => { c.seed = 12; },
         'daily without a day': (c) => { c.mode = 'daily'; c.dayKey = null; }, 'daily from another day': (c) => { c.mode = 'daily'; c.dayKey = '2026-09-18'; },
@@ -104,8 +104,8 @@ def test_a_snapshot_is_accepted_only_when_every_field_is_sound(page):
         'no run': (c) => { delete c.run; }, 'zero lives': (c) => { c.run.lives = 0; }, 'six lives': (c) => { c.run.lives = 6; }, 'half a life': (c) => { c.run.lives = 2.5; },
         'negative score': (c) => { c.run.score = -1; }, 'fractional score': (c) => { c.run.score = 1.5; }, 'life threshold behind the score': (c) => { c.run.nextLifeAt = c.run.score; },
         'combo 1.1': (c) => { c.run.combo = 1.1; }, 'combo 0.5': (c) => { c.run.combo = 0.5; }, 'combo 3.25': (c) => { c.run.combo = 3.25; }, 'combo as text': (c) => { c.run.combo = '2'; },
-        'no stats': (c) => { delete c.run.stats; }, 'negative stats': (c) => { c.run.stats.captures = -1; }, 'no best0': (c) => { delete c.run.best0; }, 'best clear over 100': (c) => { c.run.best0.clear = 101; },
-        'no patrols': (c) => { c.patrols = []; }, 'nine patrols': (c) => { c.patrols = Array(9).fill(c.patrols[0]); }, 'NaN patrol': (c) => { c.patrols[0][2] = NaN; },
+        'no stats': (c) => { delete c.run.stats; }, 'negative stats': (c) => { c.run.stats.captures = -1; }, 'negative traps': (c) => { c.run.stats.traps = -1; }, 'no trap count': (c) => { delete c.run.stats.traps; }, 'no best0': (c) => { delete c.run.best0; }, 'best clear over 100': (c) => { c.run.best0.clear = 101; },
+        'nine patrols': (c) => { c.patrols = Array(9).fill(c.patrols[0]); }, 'NaN patrol': (c) => { c.patrols[0][2] = NaN; },
         'patrol off the board': (c) => { c.patrols[0][0] = 500; }, 'short patrol': (c) => { c.patrols[0] = [1, 2, 3]; }, 'patrol as text': (c) => { c.patrols[0][1] = '5'; },
         'odd route': (c) => { c.routes[0] = [1, 2, 3]; }, 'route with NaN': (c) => { c.routes[0][1] = NaN; }, 'far too many routes': (c) => { c.routes = Array(201).fill([1, 1, 2, 2]); },
         'grid not a list': (c) => { c.grid = 'x'; }, 'grid absurdly long': (c) => { c.grid = Array(GRID_W * GRID_H * 2 + 2).fill(0); },
@@ -116,6 +116,7 @@ def test_a_snapshot_is_accepted_only_when_every_field_is_sound(page):
       out.accepted = {
         'exactly 24 h old': accepts(edit((c) => { c.savedAt = now - 24 * HOUR })), 'just under an hour ahead': accepts(edit((c) => { c.savedAt = now + HOUR - 1 })),
         'a daily on its own day': accepts(edit((c) => { c.mode = 'daily'; c.dayKey = '2026-09-19'; })),
+        'a level whose last patrol was trapped': accepts(edit((c) => { c.patrols = []; })),
         'a win-screen save needs no grid': accepts(edit((c) => { c.fresh = true; delete c.grid; delete c.patrols; delete c.routes; delete c.clock; delete c.scoreAtStart; delete c.statsAtStart; })),
       };
       // the result is a clean copy: unknown keys are dropped and the input is left alone
@@ -126,8 +127,9 @@ def test_a_snapshot_is_accepted_only_when_every_field_is_sound(page):
     assert got['good'] is True
     accepted_by_mistake = [name for name, ok in got['rejected'].items() if ok]
     assert accepted_by_mistake == [], f'these damaged snapshots were accepted: {accepted_by_mistake}'
-    assert len(got['rejected']) >= 46                                                                     # the table itself must not be quietly shortened
-    assert got['accepted'] == {'exactly 24 h old': True, 'just under an hour ahead': True, 'a daily on its own day': True, 'a win-screen save needs no grid': True}
+    assert len(got['rejected']) >= 48                                                                     # the table itself must not be quietly shortened
+    assert got['accepted'] == {'exactly 24 h old': True, 'just under an hour ahead': True, 'a daily on its own day': True,
+                               'a level whose last patrol was trapped': True, 'a win-screen save needs no grid': True}
     assert got['dirtyRejected'] is True and got['clean'] == {'noEvil': True, 'copy': True}
 
 

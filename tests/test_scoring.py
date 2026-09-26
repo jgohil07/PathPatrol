@@ -231,7 +231,7 @@ def test_best_score_is_kept_live_and_the_report_flags_only_real_records(page):
     assert got['lower']['live'] == 5000 and got['lower']['report']['newBest']['score'] is False
     assert got['higher']['report']['newBest']['score'] is True and got['tie']['report']['newBest']['score'] is False   # a tie is not a new best
     assert got['stored'] == 9000
-    assert got['first']['report']['score'] == 5000 and got['first']['report']['stats'] == {'captures': 0, 'closeCalls': 0, 'levelsCleared': 0}
+    assert got['first']['report']['score'] == 5000 and got['first']['report']['stats'] == {'captures': 0, 'closeCalls': 0, 'levelsCleared': 0, 'traps': 0}
 
 
 # ---- what the player sees --------------------------------------------------------------------------------
@@ -251,10 +251,10 @@ def test_the_hud_shows_score_and_combo_and_the_board_never_moves_as_they_grow(op
         assert page.locator('#scoreLabel').inner_text() == '3,927'
         assert page.locator('#comboLabel').is_visible() and page.locator('#comboLabel').text_content() == 'x1.25'
         assert geometry() == before, f'{width}px: the combo appearing moved or resized something'
-        page.evaluate('__pp.game.run.score = 1234567; __pp.game.run.combo = 3; __pp.game.run.lives = 5; __pp.game.emit("hud")')
+        page.evaluate('__pp.game.run.score = 1234567; __pp.game.run.combo = 3; __pp.game.run.lives = 5; __pp.game.run.stats.traps = 4; __pp.game.emit("hud")')
         settle()
-        assert page.locator('#scoreLabel').inner_text() == '1,234,567' and page.locator('#comboLabel').text_content() == 'x3.00'
-        assert geometry() == before, f'{width}px: a seven-digit score, x3.00 and five lives moved or resized something'
+        assert page.locator('#scoreLabel').inner_text() == '1,234,567' and page.locator('#comboLabel').text_content() == 'x3.00 · trap x2.00'
+        assert geometry() == before, f'{width}px: a seven-digit score, x3.00 with the top trap multiplier and five lives moved or resized something'
 
 
 def test_the_win_screen_shows_the_tally_and_moves_on_by_tap_key_or_time(open_page):

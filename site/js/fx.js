@@ -50,6 +50,7 @@ export class Fx {
     game.on('route', (event) => this._onRoute(event));
     game.on('power', (event) => this._onPower(event));
     game.on('tracer', (event) => { if (event.type === 'chase') this.ring(event.x, event.y, 'amber', { from: 1.5, to: 7, ms: 520 }); });
+    game.on('trap', (event) => this._onTrap(event));
     game.on('extraLife', () => this.popup('+1 LIFE', BOARD_CENTRE.x, 14, 'amber'));
     game.on('clear', (tally) => this._onClear(tally));
     game.on('level', () => this.clear());
@@ -152,6 +153,17 @@ export class Fx {
       const p = game.level.patrols[event.patrol];
       if (p) { this.ring(p.x, p.y, 'amber', { from: 1.8, to: 6.5, ms: 460 }); this.popup('CLOSE', p.x, p.y - 2.5, 'amber'); }
     }
+  }
+
+  /* A patrol trapped: it goes down in a spiral of sparks where it was, with a ring closing in on it. */
+  _onTrap(event) {
+    for (const p of event.patrols) {
+      this.ring(p.x, p.y, 'amber', { from: 7, to: 1.2, ms: 520 });
+      this.burst(p.x, p.y, 36, 'amber', { speed: 11, spread: 1.2, life: 0.8, size: 0.6 });
+      this.burst(p.x, p.y, 18, 'white', { speed: 6, spread: 0.6, life: 0.6, size: 0.45 });
+      this.popup(event.sweep ? 'CLEAN SWEEP' : 'TRAPPED', p.x, p.y - 3, 'amber');
+    }
+    this.shake(3);
   }
 
   _onPower(event) {
