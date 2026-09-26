@@ -47,27 +47,28 @@ def test_each_kind_has_its_size_speed_and_turning(page):
 
 
 def test_new_kinds_join_one_at_a_time_and_replace_standard_patrols(page):
-    levels = [1, 5, 7, 8, 11, 12, 16, 17, 18, 21, 25, 26, 28, 29, 31, 40]
+    levels = [1, 5, 7, 8, 9, 11, 12, 16, 17, 18, 19, 21, 25, 26, 28, 29, 31, 39]      # (no boss level: test_special.py covers those)
     got = js(page, "return arg.map((l) => { const i = levelInfo(l); return [i.patrols, i.kinds]; });", levels)
     S, C, B, H = 'standard', 'scout', 'bomber', 'hunter'
-    table = {1: [S], 5: [S], 7: [S, S], 8: [S, C], 11: [S, S, C], 12: [S, C, B], 16: [S, S, C, B], 17: [S, S, C, B],
-             18: [S, C, B, H], 21: [S, S, C, B, H], 25: [S, S, C, B, H], 26: [S, S, S, C, B, H], 28: [S, S, S, C, B, H],
-             29: [S, S, S, C, B, H], 31: [S, S, S, C, B, H], 40: [S, S, S, C, B, H]}
+    table = {1: [S], 5: [S], 7: [S, S], 8: [S, C], 9: [S, C], 11: [S, S, C], 12: [S, C, B], 16: [S, S, C, B], 17: [S, S, C, B],
+             18: [S, C, B, H], 19: [S, C, B, H], 21: [S, S, C, B, H], 25: [S, S, C, B, H], 26: [S, S, S, C, B, H], 28: [S, S, S, C, B, H],
+             29: [S, S, S, C, B, H], 31: [S, S, S, C, B, H], 39: [S, S, S, C, B, H]}
     for level, (count, kinds) in zip(levels, got):
         assert kinds == table[level], level
         assert len(kinds) == count, level                                          # the curve's patrol count is untouched
 
 
 def test_levels_one_to_seven_are_exactly_the_boards_they_were_before_kinds(page):
+    # (level 5 is left out: it became an odd-shaped special level on purpose, test_special.py)
     """Hash of every patrol and obstacle on levels 1-7 for three seeds, taken from the code as it was before kinds existed
     (commit f195115): spawning by radius reduces to the old 2.2 u clearance and 8 u spacing for standard patrols. Values are
     rounded to 1e-9 first, because WebKit's and Chromium's Math.cos differ in the last bit."""
     got = js(page, """
-      const out = {}; for (const seed of ['pathpatrol-campaign', 'seed0', 'seed7']) for (let n = 1; n <= 7; n++) {
+      const out = {}; for (const seed of ['pathpatrol-campaign', 'seed0', 'seed7']) for (const n of [1, 2, 3, 4, 6, 7]) {
         const g = new Grid(); const l = buildLevel(n, seed, g); out[seed + '/' + n] = { p: l.patrols.map((p) => [p.x, p.y, p.vx, p.vy].map((v) => Math.round(v * 1e9) / 1e9)), o: l.obstacles }; }
       return out;""")
     digest = hashlib.sha256(json.dumps(got).encode()).hexdigest()
-    assert digest == '036eb4fe06c39f9ca1d6f7bc76144d5525a12ab7541986d6d6be02a611f2869d'
+    assert digest == '51b87e0a326018e379b4db6be7f3e8d0dfaa913ee4c553e14a540421202d4ed1'
 
 
 def test_every_kind_spawns_clear_of_walls_and_of_each_other_at_its_own_speed(page):
@@ -208,8 +209,8 @@ def test_each_kind_loads_its_own_sprite_in_each_theme(open_page):
     page = open_page(viewport={'width': 1280, 'height': 800})
     page.wait_for_function("Object.values(__pp.renderer.sprites).every((set) => Object.values(set).every((i) => i.complete && i.naturalWidth > 0))")
     files = page.evaluate("Object.fromEntries(Object.entries(__pp.renderer.sprites).map(([t, set]) => [t, Object.fromEntries(Object.entries(set).map(([k, i]) => [k, i.src.split('/').pop()]))]))")
-    assert files == {'flight': {'standard': 'plane.svg', 'scout': 'scout.svg', 'bomber': 'bomber.svg', 'hunter': 'hunter.svg'},
-                     'drive': {'standard': 'car.svg', 'scout': 'scout-car.svg', 'bomber': 'bomber-car.svg', 'hunter': 'hunter-car.svg'}}
+    assert files == {'flight': {'standard': 'plane.svg', 'scout': 'scout.svg', 'bomber': 'bomber.svg', 'hunter': 'hunter.svg', 'boss': 'boss.svg'},
+                     'drive': {'standard': 'car.svg', 'scout': 'scout-car.svg', 'bomber': 'bomber-car.svg', 'hunter': 'hunter-car.svg', 'boss': 'boss-car.svg'}}
 
 
 def test_a_new_kind_is_introduced_once_per_device_after_the_levels_own_line(page):

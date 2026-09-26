@@ -278,8 +278,8 @@ def test_levels_are_deterministic_and_valid(page):
         }
       }
       const a = new Grid(), b = new Grid(), c = new Grid(), d = new Grid();
-      const la = buildLevel(5, 'same', a), lb = buildLevel(5, 'same', b), lc = buildLevel(5, 'other', c);
-      buildLevel(4, 'same', d); const ld = buildLevel(5, 'same', d);       // level 4 built first: level 5 must not change
+      const la = buildLevel(7, 'same', a), lb = buildLevel(7, 'same', b), lc = buildLevel(7, 'other', c);          // (7: not a special level,
+      buildLevel(6, 'same', d); const ld = buildLevel(7, 'same', d);       // whose shape may cover the frame's inner corner) level 6 built first: 7 must not change
       return { bad: bad.slice(0, 5), badCount: bad.length, sameSeed: summary(la, a) === summary(lb, b), otherSeed: summary(la, a) !== summary(lc, c),
                independentOfHistory: summary(la, a) === summary(ld, d), frame: a.get(0, 0) === BORDER && a.get(a.w - 1, a.h - 1) === BORDER && a.get(FRAME_UNITS * S, FRAME_UNITS * S) === 0 }; }""")
     assert got['badCount'] == 0, got['bad']

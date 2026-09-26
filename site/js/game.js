@@ -305,7 +305,8 @@ export class Game extends Emitter {
     this._setPhase(PHASE.PLAYING);
     const { mode, practice, dayKey: day } = this.run;
     const tag = mode !== 'daily' ? '' : practice ? ' · practice' : ` · daily #${puzzleNumber(day)}`;
-    this.toast(`Level ${pad2(number)} · clear ${this.level.info.target}%${tag}`, 1400);
+    const twist = { shape: ' · odd board', boss: ' · boss' }[this.level.info.special] || '';
+    this.toast(`Level ${pad2(number)} · clear ${this.level.info.target}%${twist}${tag}`, 1400);
     this._introduceKinds();
     this.emit('levelStart', { level: number, target: this.level.info.target, lives: this.run.lives });
     this.emit('hud');
@@ -440,7 +441,7 @@ export class Game extends Emitter {
 
   /* Points are banked here and nowhere else, so a route that is cancelled or hit never scores. Returns the
      breakdown for the popup and the announcer. */
-  _scoreCapture(run, gained, closeCalls, trapped = 0) {
+  _scoreCapture(run, gained, closeCalls, trapped = []) {
     const { level } = this;
     const units = ((gained / 100) * level.initialPlayable) / (CELLS_PER_UNIT * CELLS_PER_UNIT);
     const combo = run.combo;
@@ -448,10 +449,10 @@ export class Game extends Emitter {
     const trapMult = trapMultiplier(run.stats.traps);          // earned by earlier traps; this capture's own traps count from the next
     const capturePoints = Math.round(units * combo * size * trapMult);
     const closePoints = Math.round(closeCalls * SCORE.closeCall.points * combo);
-    const trapPoints = Math.round(trapped * TRAP.points * combo);
+    const trapPoints = Math.round(trapped.reduce((sum, t) => sum + (t.kind === 'boss' ? TRAP.bossPoints : TRAP.points), 0) * combo);
     run.stats.captures++;
     run.stats.closeCalls += closeCalls;
-    run.stats.traps += trapped;
+    run.stats.traps += trapped.length;
     if (gained >= SCORE.combo.minGain) run.combo = Math.min(SCORE.combo.max, combo + SCORE.combo.step);
     return { combo, nextCombo: run.combo, capturePoints, closePoints, trapPoints, trapMult, points: capturePoints + closePoints + trapPoints };
   }
@@ -498,12 +499,13 @@ export class Game extends Emitter {
     const gained = level.cleared - previous;
     const result = { percent: level.cleared, gained, cellsClaimed: before - after, points: 0, capturePoints: 0, closePoints: 0, closeCalls, combo: 1, nextCombo: 1,
                      trapped: trapped.length, trapPoints: 0, trapMult: 1, route: polyline || null };
-    if (real) Object.assign(result, this._scoreCapture(this.run, gained, closeCalls, trapped.length));
+    if (real) Object.assign(result, this._scoreCapture(this.run, gained, closeCalls, trapped));
     if (trapped.length) {
-      const sweep = level.patrols.length === 0;                // the last one: the whole board is claimed
-      this.emit('trap', { patrols: trapped, points: result.trapPoints, multiplier: trapMultiplier(this.run.stats.traps), sweep });
-      const who = trapped.length === 1 ? 'Patrol trapped' : `${trapped.length} patrols trapped`;
-      this.toast(`${sweep ? 'Clean sweep · ' : ''}${who} · +${result.trapPoints.toLocaleString('en-US')}`, 1600);
+      const sweep = level.patrols.length === 0;                // the last one (or the boss): the whole board is claimed
+      const boss = trapped.some((t) => t.kind === 'boss');
+      this.emit('trap', { patrols: trapped, points: result.trapPoints, multiplier: trapMultiplier(this.run.stats.traps), sweep, boss });
+      const who = boss ? 'Boss trapped' : trapped.length === 1 ? 'Patrol trapped' : `${trapped.length} patrols trapped`;
+      this.toast(`${sweep && !boss ? 'Clean sweep · ' : ''}${who} · +${result.trapPoints.toLocaleString('en-US')}`, 1600);
     }
     if (real) this.storage.updateRecords((r) => { r.bestClear = Math.max(r.bestClear, level.cleared); });
     this.emit('capture', result);
@@ -541,16 +543,16 @@ export class Game extends Emitter {
   _trap() {
     const { grid, level } = this;
     const { sizes, owner } = grid.regions(this._patrolSeeds());
-    const limit = TRAP.maxShare * level.initialPlayable;
+    const limit = (p) => (p.kind === 'boss' ? TRAP.bossShare : TRAP.maxShare) * level.initialPlayable;
     const trapped = [];
     const kept = [];
     level.patrols.forEach((p, i) => {
-      if (sizes[owner[i]] <= limit) trapped.push({ x: p.x, y: p.y, kind: p.kind || 'standard' });
+      if (sizes[owner[i]] <= limit(p)) trapped.push({ x: p.x, y: p.y, kind: p.kind || 'standard' });
       else kept.push(p);
     });
     if (!trapped.length) return trapped;
     level.patrols.length = 0;
-    level.patrols.push(...kept);
+    if (!trapped.some((t) => t.kind === 'boss')) level.patrols.push(...kept);        // the boss down: the whole board goes with it
     grid.claimUnreachable(this._patrolSeeds().flat());
     return trapped;
   }

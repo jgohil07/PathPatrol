@@ -52,8 +52,8 @@ const GLOW = [114, 244, 209];             // the aqua rim on open ground next to
    the top left, whatever the board's rotation): far below a plane, tight against a car. */
 const SPRITE_W = 4.5, SPRITE_H = 3.36;       // a standard patrol's sprite; other kinds are drawn in proportion to their radius
 const SPRITE_FILES = {
-  flight: { standard: 'plane.svg', scout: 'scout.svg', bomber: 'bomber.svg', hunter: 'hunter.svg' },
-  drive: { standard: 'car.svg', scout: 'scout-car.svg', bomber: 'bomber-car.svg', hunter: 'hunter-car.svg' },
+  flight: { standard: 'plane.svg', scout: 'scout.svg', bomber: 'bomber.svg', hunter: 'hunter.svg', boss: 'boss.svg' },
+  drive: { standard: 'car.svg', scout: 'scout-car.svg', bomber: 'bomber-car.svg', hunter: 'hunter-car.svg', boss: 'boss-car.svg' },
 };
 const HUNTER_TINT = '255,77,109';           // the hunter's crimson, for its wind-up ring and its chase
 const SHADOW = { flight: { blur: 0.7, x: 0.95, y: 1.35 }, drive: { blur: 0.35, x: 0.3, y: 0.4 } };

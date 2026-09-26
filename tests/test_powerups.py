@@ -75,14 +75,15 @@ def test_pickups_start_at_level_three_and_appear_every_12_to_20_seconds_lasting_
 
 
 def test_kinds_and_timings_are_the_same_for_everyone_whatever_they_do_on_the_board(page):
+    # (level 7: neither a special level, whose shape could swallow the parked patrol, nor a valley, whose first pickup comes early)
     got = js(page, """
       const schedule = (game, seconds) => { run(game, seconds); return game.log.filter((e) => e[0] === 'spawn').map((e) => [e[1], e[2]]); };
-      const idle = setup(5, [[110, 64, 0, 0]], 'daily-2026'); const a = schedule(idle, 100);
-      const busy = setup(5, [[110, 64, 0, 0]], 'daily-2026');                        // the same board, but this player keeps cutting it up
+      const idle = setup(7, [[110, 64, 0, 0]], 'daily-2026'); const a = schedule(idle, 100);
+      const busy = setup(7, [[110, 64, 0, 0]], 'daily-2026');                        // the same board, but this player keeps cutting it up
       let b = []; for (let i = 0; i < 100 * 120; i++) { busy.step(STEP); if (i % 1400 === 0 && i) { busy.commitCapture(colCells(busy, 10 + (i / 1400) * 6)); } if (busy.phase !== 'playing') break; }
       b = busy.log.filter((e) => e[0] === 'spawn').map((e) => [e[1], e[2]]);
-      const kinds = new Set(); for (let i = 0; i < 40; i++) { const g = setup(5, [[110, 64, 0, 0]], 'k' + i); run(g, 25); for (const e of g.log) if (e[0] === 'spawn') kinds.add(e[1]); }
-      const firsts = new Set(); for (let i = 0; i < 12; i++) { const g = setup(5, [[110, 64, 0, 0]], 'f' + i); firsts.add(+g.powerups.nextAt.toFixed(4)); }
+      const kinds = new Set(); for (let i = 0; i < 40; i++) { const g = setup(7, [[110, 64, 0, 0]], 'k' + i); run(g, 25); for (const e of g.log) if (e[0] === 'spawn') kinds.add(e[1]); }
+      const firsts = new Set(); for (let i = 0; i < 12; i++) { const g = setup(7, [[110, 64, 0, 0]], 'f' + i); firsts.add(+g.powerups.nextAt.toFixed(4)); }
       return { a, b, kinds: [...kinds].sort(), distinctFirstTimes: firsts.size };""")
     n = min(len(got['a']), len(got['b']))
     assert n >= 3 and got['a'][:n] == got['b'][:n]                                        # same kinds at the same times, however the board was played
@@ -331,7 +332,7 @@ def test_a_new_level_a_restart_and_the_title_clear_every_effect_and_pickup(page)
 # ---- saving ----------------------------------------------------------------------------------------------------------------------
 def test_a_resumed_run_has_the_same_pickup_timers_and_future_pickups(page):
     got = js(page, """
-      const backend = backendOf(); const A = setup(5, [[110, 64, 0, 0]], 'save-power', backend);
+      const backend = backendOf(); const A = setup(7, [[110, 64, 0, 0]], 'save-power', backend);
       A.commitCapture(colCells(A, 8));                                                     // (before the pickup exists, so it cannot swallow it)
       let guard = 0; while (!A.powerups.pickup && guard++ < 25 * 120) A.step(STEP);        // wait for the first pickup, then let it sit a while
       run(A, 3); A.powerups.until.slow = A.clock.now + POWER.slow; run(A, 1); A.powerups.until.shield = A.clock.now + POWER.shield; run(A, 1); A.persist();
@@ -353,7 +354,7 @@ def test_a_resumed_run_has_the_same_pickup_timers_and_future_pickups(page):
 def test_a_snapshot_with_bad_power_up_state_is_not_trusted(page):
     got = js(page, """
       const snap = await import('/js/snapshot.js');
-      const g = setup(5, [[110, 64, 0, 0]], 'bad-power'); run(g, 14); g.persist();
+      const g = setup(7, [[110, 64, 0, 0]], 'bad-power'); run(g, 14); g.persist();
       const good = JSON.parse(JSON.stringify(g.storage.loadSnapshot()));
       const edit = (fn) => { const c = JSON.parse(JSON.stringify(good)); fn(c); return c; };
       const ok = (raw) => snap.validateSnapshot(raw) !== null;

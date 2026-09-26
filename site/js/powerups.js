@@ -15,6 +15,7 @@ import { Rng, eventRng } from './rng.js';
 export const POWER = Object.freeze({
   kinds: ['freeze', 'shield', 'slow'],
   spawn: [12, 20],           // seconds between one pickup appearing and the next
+  valley: [2, 4],            // ...but on the level after a special, the first one comes this soon
   lifetime: 10,              // seconds a pickup waits
   freeze: 3,
   shield: 5,
@@ -51,7 +52,11 @@ export class Powerups {
     if (!this.enabled) return;
     this._seq = eventRng(seed, level.number);
     this._pos = new Rng(`${seed}|events|${level.number}|where`);
-    this.nextAt = this.game.clock.now + this._draw('range', POWER.spawn[0], POWER.spawn[1]);
+    const first = this._draw('range', POWER.spawn[0], POWER.spawn[1]);
+    // The level after a special (a valley after the peak) offers its first pickup within POWER.valley seconds: the same
+    // single draw from the stream, mapped into the shorter span, so no other level's events move.
+    const t = (first - POWER.spawn[0]) / (POWER.spawn[1] - POWER.spawn[0]);
+    this.nextAt = this.game.clock.now + (levelInfo(level.number).valley ? POWER.valley[0] + t * (POWER.valley[1] - POWER.valley[0]) : first);
     this.kind = this._draw('pick', POWER.kinds);
   }
 

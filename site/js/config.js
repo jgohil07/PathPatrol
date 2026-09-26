@@ -22,6 +22,7 @@ export const KINDS = Object.freeze({
   scout: Object.freeze({ radius: 1.0, speed: 1.35 }),
   bomber: Object.freeze({ radius: 2.1, speed: 0.7 }),
   hunter: Object.freeze({ radius: PATROL_RADIUS, speed: 0.9, turn: 50 * DEG, windup: 0.4 }),
+  boss: Object.freeze({ radius: 3.5, speed: 0.6, turn: 30 * DEG, windup: 0.8 }),         // every tenth level: see levelInfo
 });
 export const KIND_NAMES = Object.freeze(Object.keys(KINDS));
 /* What the message line says the first time a player meets each kind (once per device). */
@@ -29,6 +30,7 @@ export const KIND_INTRO = Object.freeze({
   scout: 'New · scouts: small and fast',
   bomber: 'New · bombers: big and slow, easy to trap',
   hunter: 'New · hunters chase a slow pen: swipe fast',
+  boss: 'Boss · trap it in 12% or less to win at once',
 });
 export const MIN_BOUNCE_ANGLE = (12 * Math.PI) / 180;   // a bounce turns a direction at least this far from a screen axis
 export const HEADING_TAU = 0.07;                         // seconds for a drawn sprite to catch up with a change of direction
@@ -55,8 +57,9 @@ export const SCORE = Object.freeze({
 /* Trapping: a capture that leaves a patrol shut in a pocket of open ground no bigger than maxShare of the level's playable
    area grounds it. The pocket is claimed, the patrol leaves the level, and it pays `points` x combo. Each patrol trapped
    also raises the run's trap multiplier on every later capture by multStep, up to multCap (Qix's split bonus compounds the
-   same way). Trapping the last patrol claims the whole board. */
-export const TRAP = Object.freeze({ maxShare: 0.04, points: 1500, multStep: 0.25, multCap: 2 });
+   same way). Trapping the last patrol claims the whole board. The boss is trapped in a pocket of up to bossShare, pays
+   bossPoints x combo, and trapping it clears the level at once (the rest of the board is claimed with it). */
+export const TRAP = Object.freeze({ maxShare: 0.04, points: 1500, multStep: 0.25, multCap: 2, bossShare: 0.12, bossPoints: 5000 });
 export const trapMultiplier = (traps) => Math.min(TRAP.multCap, 1 + TRAP.multStep * traps);
 
 /* The tutorial: one slow patrol on level 1's board and three coached steps. */
@@ -102,7 +105,16 @@ export function levelInfo(level) {
     tracers: l < 5 ? 0 : Math.min(3, 1 + Math.floor((l - 5) / 9)),
     powerups: l >= 3,
     kinds: kindsFor(l, Math.min(6, 1 + Math.floor((l - 1) / 5))),
+    special: specialFor(l),
+    valley: l > 5 && l % 5 === 1,                  // the level after a special: an early pickup (powerups.js)
   };
+}
+
+/* Every fifth level is special, and they alternate: an odd-shaped board (5, 15, 25...: level.js), then a boss (10, 20,
+   30...). The special stays special past the curve's ceiling. The numbers of the level itself are the curve's. */
+function specialFor(level) {
+  if (level % 5 !== 0) return null;
+  return (level / 5) % 2 === 1 ? 'shape' : 'boss';
 }
 
 /* Which kinds a level's patrols are, in order: new kinds join one at a time (a scout from level 8, a bomber from 12, a
@@ -116,5 +128,6 @@ function kindsFor(level, count) {
   if (level >= 12) special.push('bomber');
   if (level >= 18) special.push('hunter');
   const kinds = new Array(Math.max(0, count - special.length)).fill('standard').concat(special);
+  if (specialFor(level) === 'boss') kinds[0] = 'boss';          // the boss takes the place of a standard patrol (there is always one)
   return kinds.slice(0, count);
 }

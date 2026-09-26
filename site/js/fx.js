@@ -161,9 +161,10 @@ export class Fx {
       this.ring(p.x, p.y, 'amber', { from: 7, to: 1.2, ms: 520 });
       this.burst(p.x, p.y, 36, 'amber', { speed: 11, spread: 1.2, life: 0.8, size: 0.6 });
       this.burst(p.x, p.y, 18, 'white', { speed: 6, spread: 0.6, life: 0.6, size: 0.45 });
-      this.popup(event.sweep ? 'CLEAN SWEEP' : 'TRAPPED', p.x, p.y - 3, 'amber');
+      this.popup(p.kind === 'boss' ? 'BOSS DOWN' : event.sweep ? 'CLEAN SWEEP' : 'TRAPPED', p.x, p.y - 3, 'amber');
+      if (p.kind === 'boss') { this.ring(p.x, p.y, 'coral', { from: 2, to: 14, ms: 700 }); this.burst(p.x, p.y, 60, 'coral', { speed: 16, spread: 3, life: 1, size: 0.7 }); }
     }
-    this.shake(3);
+    this.shake(event.boss ? 6 : 3);
   }
 
   _onPower(event) {

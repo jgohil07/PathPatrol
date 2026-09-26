@@ -205,14 +205,24 @@ def test_a_long_route_is_drawn_without_slowing_the_page(open_page):
     page = open_page(viewport={'width': 1280, 'height': 800})
     start(page)
     press(page, 30, 1)
-    t0 = time.time()
-    for i in range(200):                                             # a scribble of 200 events
-        move(page, 30 + (i % 20), 5 + i * 0.3)
-    elapsed = time.time() - t0
+    halves = []
+    for half in range(2):                                            # a scribble of 200 events, timed in two halves
+        t0 = time.time()
+        for i in range(half * 100, half * 100 + 100):
+            move(page, 30 + (i % 20), 5 + i * 0.3)
+        halves.append(time.time() - t0)
     assert route(page)['mode'] in ('drawing', 'armed')
     assert route(page)['gridRouteCells'] == route(page)['cells']
-    assert elapsed < 6                                               # mostly Playwright's own round trips
-    page.mouse.up()
+    assert sum(halves) < 20, halves                                  # nothing stalls outright (the time is mostly Playwright's own round trips:
+    page.mouse.up()                                                   # ~7.8 s for round 1's code as well once the installed Chrome went 153 -> 154)
+    # The real question, measured in the page where round trips cannot hide it: the route must not get dearer as it grows.
+    # 2,000 moves of a long zig-zag through the route engine; the last 500 (onto a route four times as long) cost about what
+    # the first 500 did.
+    cost = page.evaluate("""() => { const r = __pp.game.route; __pp.setPatrols([{ x: 118, y: 70 }]); r.begin(3, 1); const t = [];
+      for (let i = 0; i < 2000; i++) { const a = performance.now(); r.move(3 + (i % 400) * 0.25 + 0.001 * i, 2 + Math.floor(i / 400) * 12 + (i % 2) * 0.2); t.push(performance.now() - a); }
+      const sum = (xs) => xs.reduce((u, v) => u + v, 0); return { mode: r.mode, first: sum(t.slice(0, 500)), last: sum(t.slice(1500)) }; }""")
+    assert cost['mode'] == 'drawing', cost
+    assert cost['last'] < cost['first'] * 2.5 + 5, cost
 
 
 # ---- the rotated (portrait) board ----------------------------------------------------------------
