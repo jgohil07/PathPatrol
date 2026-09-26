@@ -92,6 +92,7 @@ export class Game extends Emitter {
     this.tally = null;         // the level-clear breakdown while the win screen shows
     this.saved = null;         // a validated snapshot of an interrupted run, offered on the title screen
     this._clearAt = 0;         // game-clock time the win screen appeared
+    this.age = 0;              // simulated seconds the board has been moving (playing, win screen, title): drives the scenery's motion
     this.route = new RouteEngine(this);
     this.tutorial = new Tutorial(this);
     this.tracers = new Tracers(this);
@@ -569,6 +570,7 @@ export class Game extends Emitter {
 
   /* One fixed simulation step. */
   step(dt) {
+    if (this.isStepping()) this.age += dt;
     switch (this.phase) {
       case PHASE.PLAYING:
         this.flash = Math.max(0, this.flash - dt);

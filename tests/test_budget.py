@@ -11,8 +11,9 @@ import pytest
 
 SITE = pathlib.Path(__file__).resolve().parents[1] / 'site'
 
-RAW_BUDGET = 350_000        # bytes: the whole offline shell as it lies on disk, fonts, icons and code (327 KB at 1.0.0)
-WIRE_BUDGET = 170_000       # bytes: the same as GitHub Pages sends it, text compressed and the rest as it is (150 KB at 1.0.0)
+RAW_BUDGET = 420_000        # bytes: the whole offline shell as it lies on disk, fonts, icons and code (327 KB at 1.0.0; raised
+                            # from 350 KB for round 2's art and mechanics, the user's decision: see the round 2 progress file)
+WIRE_BUDGET = 190_000       # bytes: the same as GitHub Pages sends it, text compressed and the rest as it is (150 KB at 1.0.0; was 170 KB)
 TEXT = {'.js', '.css', '.html', '.svg', '.webmanifest'}
 FRAME_MS = 8                # script time per frame, update and draw, averaged over half a second: ten times what a laptop measures (0.4 ms; WebKit 1 ms), so
                             # that a slow shared CI machine passes and a change that makes frames ten times dearer does not (the plan's own goal is 4 ms)
@@ -54,3 +55,31 @@ def test_a_busy_late_level_stays_inside_the_frame_budget(open_page, name, option
     worst = max(w['maxMs'] for w in windows)
     assert all(w['avgMs'] > 0 for w in windows[2:])                # the loop's own timer was running
     assert average < FRAME_MS and worst < LONGEST_FRAME_MS, f'a frame costs {average:.2f} ms on average and {worst:.1f} ms at worst'
+
+
+@pytest.mark.parametrize('name,options', VIEWS, ids=[v[0] for v in VIEWS])
+def test_a_busy_late_level_holds_its_frames_on_a_slow_phones_cpu(open_page, engine, name, options):
+    """The same level with the CPU slowed four times (a mid-range phone's stand-in; a DevTools call, so Chromium only), now
+    with the round-2 scenery: ripples, cloud shadows, foam, the sprite cache and a capture's flood. The budgets are the
+    same generous ones as above, so a slow CI machine passes and a change that makes frames ten times dearer does not.
+    (Measured at 4x: 0.1 ms median, 1 ms worst; a level start with its new textures, 12 ms, once.)"""
+    if engine != 'chromium':
+        pytest.skip('CPU throttling is a Chromium DevTools call')
+    page = open_page(**options)
+    page.evaluate("__pp.game.newRun({ seed: 'busy' }); __pp.game.startLevel(31); 0")
+    cdp = page.context.new_cdp_session(page)
+    cdp.send('Emulation.setCPUThrottlingRate', {'rate': 4})
+    try:
+        # A small capture from the frame and back, so its flood runs too (unless a patrol happens to cut it: then a hit).
+        page.evaluate('(() => { const r = __pp.game.route; r.begin(1, 20); r.move(8, 20); r.move(8, 24); r.move(1, 24); })()')
+        windows = []
+        for _ in range(12):
+            time.sleep(0.5)
+            windows.append(page.evaluate('({ ...__pp.loop.stats })'))
+        assert page.evaluate('__pp.state().phase') == 'playing'
+        average = statistics.median(w['avgMs'] for w in windows)
+        worst = max(w['maxMs'] for w in windows)
+        assert all(w['avgMs'] > 0 for w in windows[2:])
+        assert average < FRAME_MS and worst < LONGEST_FRAME_MS, f'a throttled frame costs {average:.2f} ms on average and {worst:.1f} ms at worst'
+    finally:
+        cdp.send('Emulation.setCPUThrottlingRate', {'rate': 1})

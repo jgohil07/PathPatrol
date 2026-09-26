@@ -130,7 +130,7 @@ export class RouteEngine {
     const near = SCORE.closeCall.distance;
     for (let i = 0; i < level.patrols.length; i++) {
       const p = level.patrols[i];
-      if (grid.circleHitsRoute(p.x, p.y, p.r)) { this._hit(); return; }
+      if (grid.circleHitsRoute(p.x, p.y, p.r)) { this._hit('patrol', i); return; }
       if (!this.closeCalls.has(i) && grid.circleHitsRoute(p.x, p.y, near)) {
         this.closeCalls.add(i);
         this.game.emit('route', { type: 'closecall', patrol: i });
@@ -188,8 +188,9 @@ export class RouteEngine {
     this.game.powerups.touch(cx, cy);                           // drawing through a pickup takes it
     // Even with the shield, drawing onto a patrol is a hit: a route laid over one would leave it inside the solid route,
     // or pinched against a wall. The shield is for patrols flying into the route (afterStep), which bounce instead.
-    for (const p of level.patrols) {
-      if (cellDistanceSq(cx, cy, p.x, p.y) < p.r * p.r) { this._hit(); return true; }
+    for (let k = 0; k < level.patrols.length; k++) {
+      const p = level.patrols[k];
+      if (cellDistanceSq(cx, cy, p.x, p.y) < p.r * p.r) { this._hit('patrol', k); return true; }
     }
     return false;
   }
@@ -211,10 +212,12 @@ export class RouteEngine {
     return !this.game.isPlaying();                            // the capture may have won the level
   }
 
-  _hit(by = 'patrol') {
+  _hit(by = 'patrol', patrol = -1) {
+    const points = this.points.slice();                       // what was drawn, for the shatter (the erase forgets it)
+    if (this.points.length) points.push(this.tip.x, this.tip.y);
     this._erase('hit', true);
     this.mode = MODE.SPENT;
-    this.game.emit('route', { type: 'hit', by });
+    this.game.emit('route', { type: 'hit', by, patrol, points });
     this.game.loseLife();
   }
 

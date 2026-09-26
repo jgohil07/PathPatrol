@@ -139,6 +139,14 @@ export class Fx {
       const tip = game.route.tip;
       this.burst(tip.x, tip.y, 28, 'coral', { speed: 16, life: 0.55 });
       this.ring(tip.x, tip.y, 'coral', { from: 1.2, to: 5, ms: 360 });
+      const points = event.points || [];                                     // the route that was lost shatters where it lay
+      const pieces = Math.min(40, points.length / 2);
+      for (let i = 0; i < pieces; i++) {
+        const at = Math.floor((i / pieces) * (points.length / 2)) * 2;
+        this.burst(points[at], points[at + 1], 2, i % 2 ? 'coral' : 'white', { speed: 5, spread: 0.8, life: 0.5, size: 0.45 });
+      }
+      const culprit = game.level.patrols[event.patrol];                      // and the patrol that hit it is marked
+      if (culprit) this.ring(culprit.x, culprit.y, 'coral', { from: 2, to: 5.5, ms: 420 });
       this.shake(5);
     } else if (event.type === 'closecall') {
       const p = game.level.patrols[event.patrol];
@@ -155,7 +163,12 @@ export class Fx {
     }
   }
 
-  _onClear() { for (let i = 0; i < 4; i++) this.burst(15 + i * 30, 36, 22, i % 2 ? 'amber' : 'aqua', { speed: 14, spread: 20, life: 1, size: 0.5 }); }
+  /* The win screen: confetti. Any score popup still floating ends here, because the tally shows the same points over the
+     board and the two would overlap for a second. */
+  _onClear() {
+    this.popups.length = 0;
+    for (let i = 0; i < 4; i++) this.burst(15 + i * 30, 36, 22, i % 2 ? 'amber' : 'aqua', { speed: 14, spread: 20, life: 1, size: 0.5 });
+  }
 
   /* --- per frame ------------------------------------------------------------------------------------ */
 

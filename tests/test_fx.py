@@ -41,7 +41,8 @@ def test_a_capture_bursts_along_its_route_glows_and_pops_up_its_points_then_fade
     assert stats(page) == {'particles': 0, 'popups': 0, 'rings': 0, 'glows': 0, 'shaking': False}
 
     page.evaluate('__pp.setPatrols([{ x: 118, y: 60 }])')
-    draw_across(page, 80)                                                           # the second capture, at combo x1.25: the popup says so
+    draw_across(page, 60)                                                           # the second capture, at combo x1.25: the popup says so (short of a win,
+    assert page.evaluate('__pp.game.phase') == 'playing'                            # whose tally would take over from the popup)
     assert page.evaluate('__pp.fx.popups[0].text').endswith('x1.25')
 
 
@@ -51,7 +52,9 @@ def test_a_hit_bursts_rings_and_shakes_briefly_without_moving_the_page(open_page
     before = page.evaluate("(() => { const r = document.getElementById('gameCanvas').getBoundingClientRect(); return [r.x, r.y, r.width, r.height]; })()")
     page.evaluate('__pp.freeze(true); __pp.game.route.begin(40, 1); __pp.game.route.move(40, 30)')          # straight into the patrol
     st = stats(page)
-    assert st['particles'] == 28 and st['rings'] == 1 and st['shaking'] is True and st['popups'] == 0
+    # 28 at the tip, and the lost route shatters: 2 more for each piece of it (test_scenery checks they lie along it);
+    # one ring at the tip and one on the patrol that hit it
+    assert 30 <= st['particles'] <= 28 + 80 and st['particles'] % 2 == 0 and st['rings'] == 2 and st['shaking'] is True and st['popups'] == 0
     offset = page.evaluate('__pp.fx.shakeOffset(performance.now() + 40, 1)')          # 40 ms into it
     assert abs(offset['x']) + abs(offset['y']) > 0.5                                # the board really is nudged...
     after = page.evaluate("(() => { const r = document.getElementById('gameCanvas').getBoundingClientRect(); return [r.x, r.y, r.width, r.height]; })()")
@@ -74,6 +77,17 @@ def test_a_close_call_rings_the_patrol_and_says_so_an_extra_life_and_a_clear_hav
     new_run(page, '[]')
     page.evaluate('__pp.forceWin()')
     assert stats(page)['particles'] >= 80                                           # a spread of confetti across the board
+
+
+def test_the_win_screen_takes_over_from_the_popups_it_would_overlap(open_page):
+    """The winning capture's popup would float behind the tally, which shows the same points: it ends as the tally opens."""
+    page = open_page(viewport=DESKTOP)
+    new_run(page)
+    draw_across(page)
+    assert stats(page)['popups'] == 1                                               # the first capture's points, still floating
+    page.evaluate('__pp.setPatrols([]); __pp.forceWin(); 0')
+    assert page.evaluate('__pp.game.phase') == 'clear'
+    assert stats(page)['popups'] == 0 and stats(page)['particles'] > 0              # the confetti stays
 
 
 def test_a_new_level_wipes_whatever_is_left(open_page):
@@ -149,7 +163,7 @@ def test_reduced_motion_removes_movement_but_keeps_the_points_and_tones_the_flas
     page.keyboard.press('Escape')
     new_run(page, '[{ x: 40, y: 20 }]')
     page.evaluate('__pp.game.route.begin(40, 1); __pp.game.route.move(40, 30)')
-    assert stats(page)['particles'] == 28 and stats(page)['shaking'] is True
+    assert stats(page)['particles'] >= 30 and stats(page)['shaking'] is True
 
 
 def test_switching_to_reduced_motion_clears_any_effects_in_flight(open_page):
