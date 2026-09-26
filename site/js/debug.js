@@ -52,10 +52,10 @@ export function install({ game, view, renderer, ui, storage, loop, sound, haptic
     freeze(on = true) { loop.frozen = on; },
     step(n = 1) { for (let i = 0; i < n; i++) game.step(STEP); renderer.invalidate(); },
 
-    /* Replace the patrols with exactly these: [{ x, y, vx, vy }, ...] in world units. */
+    /* Replace the patrols with exactly these: [{ x, y, vx, vy, kind }, ...] in world units (kind defaults to standard). */
     setPatrols(list) {
       game.level.patrols.length = 0;
-      for (const p of list) game.level.patrols.push(makePatrol(p.x, p.y, p.vx || 0, p.vy || 0));
+      for (const p of list) game.level.patrols.push(makePatrol(p.x, p.y, p.vx || 0, p.vy || 0, p.kind));
       game.emit('hud');
     },
 

@@ -9,7 +9,8 @@ M = 0xFFFFFFFF
 
 # What a fresh profile's settings are. A new setting is added here once, and every test below that compares
 # settings builds on it with the fields it cares about overridden.
-DEFAULT_SETTINGS = {'sound': True, 'haptics': True, 'theme': 'flight', 'motion': 'auto', 'showFps': False, 'tutorialDone': False, 'installHintSeen': False}
+DEFAULT_SETTINGS = {'sound': True, 'haptics': True, 'theme': 'flight', 'motion': 'auto', 'showFps': False, 'tutorialDone': False, 'installHintSeen': False,
+                    'seenKinds': []}
 
 
 # ---- independent reference implementations (Python) --------------------------------------------
@@ -258,7 +259,7 @@ def test_reset_records_keeps_settings(page):
 # ---- level -------------------------------------------------------------------------------------
 def test_levels_are_deterministic_and_valid(page):
     got = page.evaluate("""async () => { const { Grid, BORDER } = await import('/js/grid.js'); const { buildLevel } = await import('/js/level.js');
-      const { levelInfo, FRAME_UNITS, CELLS_PER_UNIT: S } = await import('/js/config.js');
+      const { levelInfo, FRAME_UNITS, CELLS_PER_UNIT: S, KINDS } = await import('/js/config.js');
       const summary = (lvl, g) => JSON.stringify({ cells: Array.from(g.cells), p: lvl.patrols.map((p) => [p.x, p.y, p.vx, p.vy]), o: lvl.obstacles });
       const bad = [];
       for (let s = 0; s < 40; s++) {
@@ -269,8 +270,8 @@ def test_levels_are_deterministic_and_valid(page):
           if (lvl.obstacles.length !== info.obstacles) bad.push(`${seed}/${n}: ${lvl.obstacles.length} obstacles, wanted ${info.obstacles}`);
           for (const p of lvl.patrols) if (g.circleHitsSolid(p.x, p.y, p.r)) bad.push(`${seed}/${n}: a patrol starts inside a wall`);
           for (let i = 0; i < lvl.patrols.length; i++) for (let j = i + 1; j < lvl.patrols.length; j++)
-            if (Math.hypot(lvl.patrols[i].x - lvl.patrols[j].x, lvl.patrols[i].y - lvl.patrols[j].y) <= 8) bad.push(`${seed}/${n}: two patrols start too close`);
-          for (const p of lvl.patrols) if (Math.abs(Math.hypot(p.vx, p.vy) - info.speed) > 1e-9) bad.push(`${seed}/${n}: wrong patrol speed`);
+            if (Math.hypot(lvl.patrols[i].x - lvl.patrols[j].x, lvl.patrols[i].y - lvl.patrols[j].y) <= lvl.patrols[i].r + lvl.patrols[j].r + 5.3) bad.push(`${seed}/${n}: two patrols start too close`);    // 8 u for two standard patrols
+          for (const p of lvl.patrols) if (Math.abs(Math.hypot(p.vx, p.vy) - info.speed * KINDS[p.kind].speed) > 1e-9) bad.push(`${seed}/${n}: wrong patrol speed`);
           for (const o of lvl.obstacles) for (let y = o.y * S; y < (o.y + o.h) * S; y++) for (let x = o.x * S; x < (o.x + o.w) * S; x++)
             if (g.get(x, y) !== BORDER) bad.push(`${seed}/${n}: obstacle not stamped`);
           if (lvl.initialPlayable !== g.countField()) bad.push(`${seed}/${n}: initialPlayable is stale`);

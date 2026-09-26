@@ -16,7 +16,7 @@
 
    The prototype flipped x and y separately: right on straight walls, wrong on every diagonal, and patrols
    passed straight through each other. */
-import { PATROL_RADIUS, CELLS_PER_UNIT, MIN_BOUNCE_ANGLE, HEADING_TAU } from './config.js';
+import { CELLS_PER_UNIT, MIN_BOUNCE_ANGLE, HEADING_TAU, KINDS } from './config.js';
 import { SOLID_MASK } from './grid.js';
 
 export const TRAIL_LENGTH = 9;
@@ -25,16 +25,18 @@ export const TRAIL_LENGTH = 9;
    depenetration passes each contact needed (passes[n] contacts took n passes). */
 export const stats = { substeps: 0, passes: new Array(13).fill(0) };
 
-const MAX_MOVE = 0.25;            // of the radius, per sub-step: nothing can tunnel through a wall
+const MAX_MOVE = 0.25;            // of a patrol's own radius, per sub-step: nothing can tunnel through a wall
 const MAX_ITERATIONS = 12;         // depenetration passes per patrol per sub-step
 
-export function makePatrol(x, y, vx, vy) {
+export function makePatrol(x, y, vx, vy, kind = 'standard') {
+  const k = KINDS[kind] ? kind : 'standard';
   return {
-    x, y, vx, vy,
+    x, y, vx, vy, kind: k,
     px: x, py: y,                                  // position one step ago, for interpolated drawing
-    r: PATROL_RADIUS,
+    r: KINDS[k].radius,
     speed: Math.hypot(vx, vy),                     // held constant by the physics; the level sets it
     heading: Math.atan2(vy, vx),                   // the drawn direction: eases towards the velocity's
+    windup: -1, chasing: false,                    // steering.js: a hunter's wind-up and chase (idle for every other kind)
     trail: new Float32Array(TRAIL_LENGTH * 2),     // ring buffer of recent positions
     trailHead: 0, trailLen: 0, trailTick: 0,
   };
@@ -259,13 +261,13 @@ export function collidePair(a, b, minAngle = MIN_BOUNCE_ANGLE, govern = true) {
    one move under a quarter of a radius. Returns the number of bounces (for tests and sound). */
 export function advance(patrols, dt, grid, { mask = SOLID_MASK, minAngle = MIN_BOUNCE_ANGLE } = {}) {
   const n = patrols.length;
-  let fastest = 0, bounces = 0;
+  let quickest = 0, bounces = 0;                                   // the most radii any patrol covers per second
   for (let i = 0; i < n; i++) {
     const p = patrols[i];
     p.px = p.x; p.py = p.y;
-    if (p.speed > fastest) fastest = p.speed;
+    if (p.speed / p.r > quickest) quickest = p.speed / p.r;
   }
-  const steps = Math.max(1, Math.ceil((fastest * dt) / (MAX_MOVE * PATROL_RADIUS)));
+  const steps = Math.max(1, Math.ceil((quickest * dt) / MAX_MOVE));    // so no patrol moves more than MAX_MOVE of its own radius
   const h = dt / steps;
   for (let s = 0; s < steps; s++) {
     stats.substeps++;

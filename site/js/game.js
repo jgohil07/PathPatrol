@@ -4,11 +4,12 @@
    Every delayed action goes through the Scheduler below, which only advances while the game is
    actually running, so pausing freezes it and restarting cancels it. The prototype used setTimeout and
    paid for it: a restarted level could "win itself" and a pause could be overridden. */
-import { START_LIVES, MAX_LIVES, LEVEL_CLEAR_DELAY, CLEAR_SKIP_AFTER, RESUME_COUNTDOWN, CELLS_PER_UNIT, SCORE, TUTORIAL, TRAP, trapMultiplier, levelInfo } from './config.js';
+import { START_LIVES, MAX_LIVES, LEVEL_CLEAR_DELAY, CLEAR_SKIP_AFTER, RESUME_COUNTDOWN, CELLS_PER_UNIT, SCORE, TUTORIAL, TRAP, KIND_INTRO, trapMultiplier, levelInfo } from './config.js';
 import { Grid, FIELD, WALL, ROUTE, SOLID_MASK, ROUTE_MASK, toCell } from './grid.js';
 import { buildLevel } from './level.js';
 import { buildExtraLevel } from './egg.js';
 import { advance, settle, makePatrol } from './physics.js';
+import { steer } from './steering.js';
 import { RouteEngine } from './route.js';
 import { Tutorial } from './tutorial.js';
 import { Tracers } from './tracers.js';
@@ -171,8 +172,8 @@ export class Game extends Emitter {
         return false;
       }
       level.patrols.length = 0;
-      for (const [x, y, vx, vy, heading] of snap.patrols) {
-        const patrol = makePatrol(x, y, vx, vy);
+      for (const [x, y, vx, vy, heading, kind] of snap.patrols) {
+        const patrol = makePatrol(x, y, vx, vy, kind);
         patrol.heading = heading;
         level.patrols.push(patrol);
       }
@@ -305,9 +306,20 @@ export class Game extends Emitter {
     const { mode, practice, dayKey: day } = this.run;
     const tag = mode !== 'daily' ? '' : practice ? ' · practice' : ` · daily #${puzzleNumber(day)}`;
     this.toast(`Level ${pad2(number)} · clear ${this.level.info.target}%${tag}`, 1400);
+    this._introduceKinds();
     this.emit('levelStart', { level: number, target: this.level.info.target, lives: this.run.lives });
     this.emit('hud');
     this.persist();
+  }
+
+  /* The first time this device meets a kind of patrol, a line on the message console says what it does, after the level's
+     own line has had its moment. On the game clock, so it waits through a pause and is dropped with the level. */
+  _introduceKinds() {
+    const seen = this.storage.settings.seenKinds || [];
+    const fresh = [...new Set(this.level.patrols.map((p) => p.kind))].filter((k) => KIND_INTRO[k] && !seen.includes(k));
+    if (!fresh.length) return;
+    this.storage.updateSettings({ seenKinds: seen.concat(fresh) });
+    fresh.forEach((kind, i) => this.clock.after(1.5 + 2.6 * i, () => this.toast(KIND_INTRO[kind], 2400)));
   }
 
   /* Same layout, same lives. The attempt's points are forgotten, so a restart cannot bank score; the life
@@ -612,6 +624,7 @@ export class Game extends Emitter {
           this.pilot.update(dt);              // the keyboard cursor moves, laying route cells like a pointer would
           this.powerups.update();             // a pickup may appear or expire, an effect may end
           const scale = this.powerups.scale();
+          steer(this.level.patrols, this.route, dt * scale.patrols);      // hunters turn towards the pen (after a wind-up)
           if (scale.patrols > 0) advance(this.level.patrols, dt * scale.patrols, this.grid, this.powerups.shielded ? SHIELDED : undefined);
           else for (const p of this.level.patrols) { p.px = p.x; p.py = p.y; }      // frozen: drawn where they are, not shimmering back
           this.route.afterStep();             // a patrol may have flown into the route being drawn

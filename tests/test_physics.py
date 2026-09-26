@@ -282,7 +282,7 @@ def test_the_top_of_the_curve_costs_little_and_breaks_no_rule_on_real_levels(pag
             if (!Number.isFinite(p.x + p.y + p.vx + p.vy)) { problems.push(`level ${level} seed ${seed}: not finite`); i = 1e9; break; }
             drift = Math.max(drift, Math.abs(Math.hypot(p.vx, p.vy) - p.speed));
             if (!regs[k].seen[Math.floor(p.y * S) * g.w + Math.floor(p.x * S)]) { problems.push(`level ${level} seed ${seed}: patrol ${k} left its ground`); i = 1e9; break; }
-            if (g.circleHitsSolid(p.x, p.y, R - 0.001)) { let lo = 0.001, hi = R; for (let b = 0; b < 30; b++) { const mid = (lo + hi) / 2; if (g.circleHitsSolid(p.x, p.y, R - mid)) lo = mid; else hi = mid; } worst = Math.max(worst, lo); } } }
+            if (g.circleHitsSolid(p.x, p.y, p.r - 0.001)) { let lo = 0.001, hi = p.r; for (let b = 0; b < 30; b++) { const mid = (lo + hi) / 2; if (g.circleHitsSolid(p.x, p.y, p.r - mid)) lo = mid; else hi = mid; } worst = Math.max(worst, lo); } } }   // each against its own radius (a scout's is smaller)
         const t0 = performance.now(); for (let i = 0; i < 5000; i++) advance(ps, STEP, g); msPerStep = Math.max(msPerStep, (performance.now() - t0) / 5000); }
       return { problems: problems.slice(0, 3), steps, worst, drift, msPerStep, most, fastest, boards }; """)
     assert got['problems'] == [] and got['boards'] == 24 and got['most'] == 6 and got['fastest'] == pytest.approx(26, abs=1e-9) and got['steps'] > 200000

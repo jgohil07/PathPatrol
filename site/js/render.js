@@ -12,7 +12,8 @@
    real time, like fx.js, and finish by themselves.
 
    All drawing is in board units; view.applyTransform() maps them to device pixels, rotation included. */
-import { BOARD_W, BOARD_H, GRID_W, GRID_H, CELLS_PER_UNIT as S } from './config.js';
+import { BOARD_W, BOARD_H, GRID_W, GRID_H, CELLS_PER_UNIT as S, KINDS, PATROL_RADIUS } from './config.js';
+import { steeringOf } from './steering.js';
 import { FIELD, WALL, BORDER, walkCells } from './grid.js';
 import { TRAIL_LENGTH } from './physics.js';
 import { GLYPHS } from './glyphs.js';
@@ -49,7 +50,12 @@ const GLOW = [114, 244, 209];             // the aqua rim on open ground next to
 
 /* Patrol sprites: their size on the board, and a soft shadow thrown towards the bottom right of the screen (light from
    the top left, whatever the board's rotation): far below a plane, tight against a car. */
-const SPRITE_W = 4.5, SPRITE_H = 3.36;
+const SPRITE_W = 4.5, SPRITE_H = 3.36;       // a standard patrol's sprite; other kinds are drawn in proportion to their radius
+const SPRITE_FILES = {
+  flight: { standard: 'plane.svg', scout: 'scout.svg', bomber: 'bomber.svg', hunter: 'hunter.svg' },
+  drive: { standard: 'car.svg', scout: 'scout-car.svg', bomber: 'bomber-car.svg', hunter: 'hunter-car.svg' },
+};
+const HUNTER_TINT = '255,77,109';           // the hunter's crimson, for its wind-up ring and its chase
 const SHADOW = { flight: { blur: 0.7, x: 0.95, y: 1.35 }, drive: { blur: 0.35, x: 0.3, y: 0.4 } };
 const RIM = 0.16;                         // units: the pale rim round every sprite (see _sprite)
 const RIM_COLOUR = 'rgba(236,250,246,0.78)';
@@ -66,10 +72,17 @@ export class Renderer {
     this.view = view;
     this.game = game;
     this.theme = storage.settings.theme;
-    this.sprites = { flight: new Image(), drive: new Image() };
-    this.sprites.flight.src = 'assets/sprites/plane.svg';
-    this.sprites.drive.src = 'assets/sprites/car.svg';
-    for (const image of Object.values(this.sprites)) image.addEventListener('load', () => { this._spriteCache = null; this.invalidate(); });
+    // One sprite per theme and kind (the plain plane and car are the prototype's files, redrawn).
+    this.sprites = {};
+    for (const [theme, files] of Object.entries(SPRITE_FILES)) {
+      this.sprites[theme] = {};
+      for (const [kind, file] of Object.entries(files)) {
+        const image = new Image();
+        image.addEventListener('load', () => { this._spriteCache.clear(); this.invalidate(); });
+        image.src = `assets/sprites/${file}`;
+        this.sprites[theme][kind] = image;
+      }
+    }
 
     this.base = document.createElement('canvas');
     this.baseCtx = this.base.getContext('2d', { alpha: false });
@@ -101,6 +114,7 @@ export class Renderer {
     this.pickupDrawn = null;                                  // the power-up drawn this frame, if any (for tests)
     this.flashAlpha = 0;                                      // the red "life lost" tint drawn this frame (for tests)
     this.revealing = false;                                   // a capture's flood is showing (for tests)
+    this.steeringDrawn = {};                                  // hunters drawn this frame by steering state (for tests)
     this._shake = { x: 0, y: 0 };
     this._fieldKey = '';
     this._field = null;
@@ -108,7 +122,7 @@ export class Renderer {
     this._wavePattern = null;
     this._claimedPattern = null;
     this._foam = null;
-    this._spriteCache = null;
+    this._spriteCache = new Map();                            // `${theme}|${kind}` -> the sprite rasterised at the board's scale
 
     game.on('level', () => this._onLevel());
     game.on('capture', (result) => this._onCapture(result));
@@ -117,7 +131,7 @@ export class Renderer {
 
   invalidate() { this.dirty = true; }
   invalidateStatic() { this.baseDirty = true; this.territoryDirty = true; this.dirty = true; }
-  resize() { this._wavePattern = null; this._claimedPattern = null; this._spriteCache = null; this.invalidateStatic(); }
+  resize() { this._wavePattern = null; this._claimedPattern = null; this._spriteCache.clear(); this.invalidateStatic(); }
   setTheme(theme) { this.theme = theme; this._claimedPattern = null; this.invalidateStatic(); }
   setReducedMotion(on) {
     this.reducedMotion = !!on;
@@ -156,7 +170,8 @@ export class Renderer {
     this._drawLiveRoute();
     this._drawGhost();
     this._drawPickup(now);
-    this._drawPatrols(alpha);
+    this.steeringDrawn = {};
+    this._drawPatrols(alpha, now);
     this._drawTracers(alpha, now);
     if (game.powerups.active('freeze')) {                                                        // everything is still: a faint ice-blue cast
       ctx.fillStyle = 'rgba(160,225,255,0.07)';
@@ -638,20 +653,25 @@ export class Renderer {
 
   /* --- patrols ------------------------------------------------------------------------------------ */
 
-  /* Each theme's sprite rasterised once at the board's scale, with its blurred silhouette for the shadow: far cheaper
-     than a canvas shadow on every patrol every frame. Rebuilt when the scale changes or a sprite (re)loads. */
-  _sprite() {
+  /* A kind's sprite rasterised once at the board's scale, with its blurred silhouette for the shadow: far cheaper than a
+     canvas shadow on every patrol every frame. Rebuilt when the scale changes or a sprite (re)loads. */
+  _sprite(kind) {
     const { theme } = this;
     const k = this.view.fit.k;
-    if (this._spriteCache && this._spriteCache.theme === theme && this._spriteCache.k === k) return this._spriteCache;
-    const image = this.sprites[theme];
+    const key = `${theme}|${kind}`;
+    const cached = this._spriteCache.get(key);
+    if (cached && cached.k === k) return cached;
+    const set = this.sprites[theme];
+    const image = set[kind] || set.standard;
     if (!(image.complete && image.naturalWidth > 0)) return null;
-    const w = Math.max(1, Math.ceil(SPRITE_W * k)), h = Math.max(1, Math.ceil(SPRITE_H * k));
+    const size = (KINDS[kind] ? KINDS[kind].radius : PATROL_RADIUS) / PATROL_RADIUS;
+    const W = SPRITE_W * size, H = SPRITE_H * size;
+    const w = Math.max(1, Math.ceil(W * k)), h = Math.max(1, Math.ceil(H * k));
     const body = document.createElement('canvas');
     body.width = w; body.height = h;
     const b = body.getContext('2d');
-    // A thin pale rim, like a sticker's edge: on a mid-tone field neither the body nor its dark outline stands out at
-    // 3:1, and the rim does. Its silhouette is stamped around the sprite, then the sprite goes on top.
+    // A thin pale rim, like a sticker's edge: it keeps the sprite standing out on a mid-tone field (see the contrast test).
+    // Its silhouette is stamped around the sprite, then the sprite goes on top.
     const rim = Math.max(1, Math.round(RIM * k));
     const inset = rim;
     const inner = document.createElement('canvas');
@@ -674,19 +694,21 @@ export class Renderer {
     g.shadowBlur = blur;
     g.shadowOffsetX = away;
     g.drawImage(body, margin - away, margin);
-    this._spriteCache = { theme, k, body, shadow, margin: margin / k };
-    return this._spriteCache;
+    const sprite = { k, body, shadow, margin: margin / k, w: W, h: H };
+    this._spriteCache.set(key, sprite);
+    return sprite;
   }
 
-  _drawPatrols(alpha) {
+  _drawPatrols(alpha, now) {
     const { ctx, theme } = this;
-    const sprite = this._sprite();
     const flight = theme === 'flight';
     const shade = SHADOW[theme];
     const offset = this._screenToBoard(shade.x, shade.y);
     for (const p of this.game.level.patrols) {
       const x = p.px + (p.x - p.px) * alpha, y = p.py + (p.y - p.py) * alpha;
+      const sprite = this._sprite(p.kind);
       this._drawWake(p, x, y, flight);
+      this._drawSteering(p, x, y, now);
       // Banking: how far the drawn heading still has to turn to meet the velocity is how hard the patrol is turning. A
       // plane rolls into it (drawn as a squash across its body); a car does not.
       let bank = 0;
@@ -704,11 +726,11 @@ export class Renderer {
         ctx.rotate(p.heading);
         ctx.scale(1, across);
         const m = sprite.margin;
-        ctx.drawImage(sprite.shadow, -SPRITE_W / 2 - m, -SPRITE_H / 2 - m, SPRITE_W + 2 * m, SPRITE_H + 2 * m);
+        ctx.drawImage(sprite.shadow, -sprite.w / 2 - m, -sprite.h / 2 - m, sprite.w + 2 * m, sprite.h + 2 * m);
         ctx.restore();
         ctx.rotate(p.heading);
         ctx.scale(1, across);
-        ctx.drawImage(sprite.body, -SPRITE_W / 2, -SPRITE_H / 2, SPRITE_W, SPRITE_H);
+        ctx.drawImage(sprite.body, -sprite.w / 2, -sprite.h / 2, sprite.w, sprite.h);
       } else {                                               // until the sprite has loaded
         ctx.rotate(p.heading);
         ctx.fillStyle = flight ? '#ff8d63' : '#5bd6e2';
@@ -717,6 +739,37 @@ export class Renderer {
       }
       ctx.restore();
     }
+  }
+
+  /* A hunter that has noticed a route: during its wind-up a dashed ring closes in on it, so the player sees it coming
+     before it turns; while it chases, a solid ring and a tick pointing at the pen. Still (no pulse) with reduced motion. */
+  _drawSteering(p, x, y, now) {
+    const s = steeringOf(p);
+    this.steeringDrawn[s.state] = (this.steeringDrawn[s.state] || 0) + 1;
+    if (s.state !== 'windup' && s.state !== 'chase') return;
+    const { ctx } = this;
+    const scale = this.view.fit.scale;
+    ctx.save();
+    ctx.lineWidth = 2.2 / scale;
+    if (s.state === 'windup') {
+      ctx.setLineDash([4 / scale, 3 / scale]);
+      ctx.strokeStyle = `rgba(${HUNTER_TINT},${0.35 + 0.6 * s.t})`;
+      ctx.beginPath();
+      ctx.arc(x, y, p.r + 4.2 - 3 * s.t, 0, Math.PI * 2);
+      ctx.stroke();
+    } else {
+      const pulse = this.reducedMotion ? 0 : 0.25 * Math.sin(now / 90);
+      ctx.strokeStyle = `rgba(${HUNTER_TINT},0.9)`;
+      ctx.beginPath();
+      ctx.arc(x, y, p.r + 1.1 + pulse, 0, Math.PI * 2);
+      ctx.stroke();
+      const tip = this.game.route.tip, a = Math.atan2(tip.y - y, tip.x - x), r0 = p.r + 1.3;
+      ctx.beginPath();
+      ctx.moveTo(x + Math.cos(a) * r0, y + Math.sin(a) * r0);
+      ctx.lineTo(x + Math.cos(a) * (r0 + 1.4), y + Math.sin(a) * (r0 + 1.4));
+      ctx.stroke();
+    }
+    ctx.restore();
   }
 
   /* Behind each patrol, built from its recent positions: two contrails from a plane's wingtips, or two tyre tracks

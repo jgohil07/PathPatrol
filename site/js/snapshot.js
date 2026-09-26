@@ -7,11 +7,11 @@
 
    Everything read back is untrusted (localStorage can hold anything), so validateSnapshot rebuilds a clean
    object field by field and returns null for the smallest doubt. A run that cannot be trusted is dropped. */
-import { GRID_W, GRID_H, BOARD_W, BOARD_H, APP_VERSION, MAX_LIVES, SCORE, levelInfo } from './config.js';
+import { GRID_W, GRID_H, BOARD_W, BOARD_H, APP_VERSION, MAX_LIVES, SCORE, KIND_NAMES, levelInfo } from './config.js';
 import { POWER } from './powerups.js';
 import { FIELD, WALL, BORDER, ROUTE } from './grid.js';
 
-export const SNAPSHOT_VERSION = 3;          // 2: the difficulty curve changed and ordinary runs share one seed; 3: traps (a run's trap count, levels with no patrol left)
+export const SNAPSHOT_VERSION = 3;          // 2: the difficulty curve changed and ordinary runs share one seed; 3: traps (a run's trap count, levels with no patrol left) and patrol kinds
 export const SNAPSHOT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 const CLOCK_SKEW_MS = 60 * 60 * 1000;         // a save stamped further ahead than this is not believed
 const MAX_PATROLS = 8;
@@ -78,7 +78,7 @@ export function takeSnapshot(game, now = Date.now()) {
     ...base, level: level.number, fresh: false,
     scoreAtStart: level.scoreAtStart, statsAtStart: { ...level.statsAtStart }, clock: game.clock.now,
     grid: encodeGrid(game.grid.cells),
-    patrols: level.patrols.map((p) => [p.x, p.y, p.vx, p.vy, p.heading]),
+    patrols: level.patrols.map((p) => [p.x, p.y, p.vx, p.vy, p.heading, p.kind]),
     tracers: game.tracers.toJSON(),
     powerups: game.powerups.toJSON(),
     routes: level.routes.map((r) => Array.from(r)),
@@ -147,7 +147,7 @@ export function validateSnapshot(raw, { now = Date.now(), today = null } = {}) {
   if (raw.patrols.length > MAX_PATROLS) return null;                          // (none at all is fine: a trap can take the last one)
   const patrols = [];
   for (const p of raw.patrols) {
-    if (!Array.isArray(p) || p.length !== 5 || !p.every(Number.isFinite)) return null;
+    if (!Array.isArray(p) || p.length !== 6 || !p.slice(0, 5).every(Number.isFinite) || !KIND_NAMES.includes(p[5])) return null;
     if (!isCoordinate(p[0], BOARD_W) || !isCoordinate(p[1], BOARD_H)) return null;
     patrols.push(p.slice());
   }

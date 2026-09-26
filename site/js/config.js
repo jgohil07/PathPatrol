@@ -11,7 +11,25 @@ export const GRID_W = BOARD_W * CELLS_PER_UNIT;
 export const GRID_H = BOARD_H * CELLS_PER_UNIT;
 export const FRAME_UNITS = 2;                  // thickness of the outer frame
 
-export const PATROL_RADIUS = 1.35;
+export const PATROL_RADIUS = 1.35;                     // a standard patrol's; each kind has its own (KINDS)
+
+/* Patrol kinds. `radius` in units, `speed` a multiple of the level's speed. A hunter (and the boss) steers towards the tip
+   of a route being drawn, after a visible wind-up, and never turns faster than `turn` radians a second: a confident swipe
+   outruns it, a hesitant one is caught (steering.js). Everything else about a patrol is the same for every kind. */
+const DEG = Math.PI / 180;
+export const KINDS = Object.freeze({
+  standard: Object.freeze({ radius: PATROL_RADIUS, speed: 1 }),
+  scout: Object.freeze({ radius: 1.0, speed: 1.35 }),
+  bomber: Object.freeze({ radius: 2.1, speed: 0.7 }),
+  hunter: Object.freeze({ radius: PATROL_RADIUS, speed: 0.9, turn: 50 * DEG, windup: 0.4 }),
+});
+export const KIND_NAMES = Object.freeze(Object.keys(KINDS));
+/* What the message line says the first time a player meets each kind (once per device). */
+export const KIND_INTRO = Object.freeze({
+  scout: 'New · scouts: small and fast',
+  bomber: 'New · bombers: big and slow, easy to trap',
+  hunter: 'New · hunters chase a slow pen: swipe fast',
+});
 export const MIN_BOUNCE_ANGLE = (12 * Math.PI) / 180;   // a bounce turns a direction at least this far from a screen axis
 export const HEADING_TAU = 0.07;                         // seconds for a drawn sprite to catch up with a change of direction
 
@@ -83,5 +101,20 @@ export function levelInfo(level) {
     obstacles: Math.min(5, Math.floor((l - 1) / 5)),
     tracers: l < 5 ? 0 : Math.min(3, 1 + Math.floor((l - 5) / 9)),
     powerups: l >= 3,
+    kinds: kindsFor(l, Math.min(6, 1 + Math.floor((l - 1) / 5))),
   };
+}
+
+/* Which kinds a level's patrols are, in order: new kinds join one at a time (a scout from level 8, a bomber from 12, a
+   hunter from 18) and replace standard patrols, so the count of patrols is the curve's as before. Levels 1-7 are all
+   standard. No kind arrives on a level where the count itself rises (6, 11, 16, 21, 26). Measured with the bots
+   (research/difficulty-curve-20260927-kinds): each arrival moves the lives lost per level by less than 0.1, and a second
+   scout, tried at 26 and at 29, made the top of the curve harder than the ceiling tuned on 2026-09-21, so there is none. */
+function kindsFor(level, count) {
+  const special = [];
+  if (level >= 8) special.push('scout');
+  if (level >= 12) special.push('bomber');
+  if (level >= 18) special.push('hunter');
+  const kinds = new Array(Math.max(0, count - special.length)).fill('standard').concat(special);
+  return kinds.slice(0, count);
 }

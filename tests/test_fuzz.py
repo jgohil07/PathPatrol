@@ -8,7 +8,7 @@ FUZZ = """
   const { Game } = await import('/js/game.js');
   const { createStorage, memoryBackend } = await import('/js/storage.js');
   const { FIELD, ROUTE, SOLID_MASK } = await import('/js/grid.js');
-  const { STEP, PATROL_RADIUS: R, START_LIVES, MAX_LIVES, SCORE, levelInfo } = await import('/js/config.js');
+  const { STEP, START_LIVES, MAX_LIVES, SCORE, levelInfo } = await import('/js/config.js');
   const { traceContours } = await import('/js/contour.js');
   const { POWER } = await import('/js/powerups.js');
   const { validateSnapshot } = await import('/js/snapshot.js');
@@ -114,8 +114,8 @@ FUZZ = """
       for (const p of level.patrols) {
         if (!Number.isFinite(p.x + p.y + p.vx + p.vy)) { note(`seed ${seed} ${where}: a patrol is not finite`); continue; }
         if (Math.abs(Math.hypot(p.vx, p.vy) - p.speed) > 1e-9) note(`seed ${seed} ${where}: a patrol's speed drifted`);
-        if (g.circleHitsSolid(p.x, p.y, R - 0.02)) note(`seed ${seed} ${where}: a patrol is inside a wall by more than 0.02`);
-        else if (g.circleHitsSolid(p.x, p.y, R - 0.001)) out.shallow++;
+        if (g.circleHitsSolid(p.x, p.y, p.r - 0.02)) note(`seed ${seed} ${where}: a patrol is inside a wall by more than 0.02`);
+        else if (g.circleHitsSolid(p.x, p.y, p.r - 0.001)) out.shallow++;
         if (g.isSolid(Math.floor(p.x * 2), Math.floor(p.y * 2))) note(`seed ${seed} ${where}: a patrol's centre is inside a wall`);
       }
     };

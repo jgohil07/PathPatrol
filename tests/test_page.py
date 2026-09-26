@@ -5,7 +5,8 @@ import json
 import pytest
 
 STORE = 'pathpatrol:v2'
-DEFAULT_SETTINGS = {'sound': True, 'haptics': True, 'theme': 'flight', 'motion': 'auto', 'showFps': False, 'tutorialDone': False, 'installHintSeen': False}
+DEFAULT_SETTINGS = {'sound': True, 'haptics': True, 'theme': 'flight', 'motion': 'auto', 'showFps': False, 'tutorialDone': False, 'installHintSeen': False,
+                    'seenKinds': []}
 LEGACY = 'color-divide-records-v1'
 
 

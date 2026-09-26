@@ -277,8 +277,8 @@ kbd { display: inline-block; min-width: 1.7em; margin-inline: 1px; padding: 2px 
 .records-list dd, .keys dd { color: var(--ink); font-weight: 500; text-align: right; }
 .how { display: grid; gap: 10px; padding-left: 20px; color: var(--ink-soft); }
 .how b { color: var(--ink); font-weight: 500; }
-.how-daily { color: var(--ink-soft); }
-.how-daily b { color: var(--amber); font-weight: 500; }
+.how-daily, .how-trap { color: var(--ink-soft); }
+.how-daily b, .how-trap b { color: var(--amber); font-weight: 500; }
 .share-text { width: 100%; padding: 10px 12px; border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--bg); color: var(--ink); font: 500 12.5px/1.5 var(--font-ui); resize: none; }
 .version-line { text-align: center; }
 
