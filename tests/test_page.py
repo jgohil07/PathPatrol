@@ -123,7 +123,8 @@ def test_d5_win_banner_survives_pause_and_cannot_be_restarted(open_page):
     assert page.locator('#restartButton').is_disabled()
     page.click('#pauseButton')
     assert state(page)['phase'] == 'paused' and page.locator('#pauseOverlay').is_visible()
-    page.wait_for_timeout(1700)                           # longer than the whole win delay
+    page.wait_for_timeout(3900)                           # longer than the whole win delay (3.4 s since round 1's Phase 5.1; this was 1.7 s,
+                                                          # which a real-time timer would no longer have outlasted)
     st = state(page)
     assert st['phase'] == 'paused' and st['level'] == 1   # the prototype's timers would have moved on by now
     page.click('#resumeButton')

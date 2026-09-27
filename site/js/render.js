@@ -362,7 +362,7 @@ export class Renderer {
      gets the rim of light, strong at one cell and fading at two. */
   _paintCells(look) {
     const { cells, w, h } = this.game.grid;
-    const ink = look ? look.ink : INK, dots = look ? look.dot : null, glow = look ? look.glow : GLOW;
+    const dots = look ? look.dot : null, glow = look ? look.glow : GLOW;         // (the mask only needs its alpha: the ink comes from _claimedFill)
     const mask = this.mask.image.data, px = this.detail.image.data;
     const solid = (v) => v === WALL || v === BORDER;
     const at = (x, y) => (x < 0 || y < 0 || x >= w || y >= h ? true : solid(cells[y * w + x]));
@@ -373,7 +373,7 @@ export class Renderer {
         this.solid[i] = solid(v) ? 1 : 0;
         px[o + 3] = 0;
         if (solid(v)) {
-          mask[o] = ink[0]; mask[o + 1] = ink[1]; mask[o + 2] = ink[2]; mask[o + 3] = 255;
+          mask[o + 3] = 255;
           if (dots && v === WALL && (x & 7) === 4 && (y & 7) === 4) { px[o] = dots[0]; px[o + 1] = dots[1]; px[o + 2] = dots[2]; px[o + 3] = 255; continue; }
           if (v !== WALL) continue;
           const lit = !at(x - light.x, y) || !at(x, y - light.y);              // open ground on the lit side

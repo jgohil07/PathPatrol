@@ -49,6 +49,7 @@
       <symbol id="i-restart" viewBox="0 0 24 24"><path d="M4.6 12a7.4 7.4 0 1 0 2.3-5.4" /><path d="M4.4 4.2v4.4h4.4" /></symbol>
       <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" /></symbol>
       <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13.5 6.5L19 12l-5.5 5.5" /></symbol>
+      <symbol id="i-star" viewBox="0 0 24 24"><path d="M12 3.6l2.5 5.3 5.8.7-4.3 4 1.1 5.7L12 16.5l-5.1 2.8 1.1-5.7-4.3-4 5.8-.7z" /></symbol>
     </svg>
 
     <div class="app" id="app" data-phase="boot">
@@ -77,6 +78,9 @@
               <svg class="icon icon-play" aria-hidden="true"><use href="#i-play" /></svg>
               <svg class="icon icon-skip" aria-hidden="true"><use href="#i-arrow" /></svg>
               <span class="btn-text only-fine">Pause</span><kbd class="only-fine">P</kbd>
+            </button>
+            <button class="btn btn--ghost btn--adaptive" id="levelsButton" type="button" aria-label="Levels" aria-haspopup="dialog" hidden>
+              <svg class="icon" aria-hidden="true"><use href="#i-star" /></svg><span class="btn-text only-fine" id="levelsLabel">Levels</span>
             </button>
           </div>
         </header>
@@ -117,7 +121,6 @@
               <p class="daily-line" id="dailyLine"></p>
               <button type="button" class="btn btn--daily" id="shareTodayButton" hidden>Share today's result</button>
               <p class="records" id="titleRecords"></p>
-              <button type="button" class="btn btn--quiet btn--levels" id="levelsButton" hidden>Levels</button>
               <button type="button" class="btn btn--quiet" id="appNotice" hidden>Install app</button>
               <p class="fine">Start on an edge · draw across · finish on an edge</p>
             </div>

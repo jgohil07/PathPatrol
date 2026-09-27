@@ -53,7 +53,9 @@ def test_a_busy_late_level_stays_inside_the_frame_budget(open_page, name, option
     assert page.evaluate('__pp.state().phase') == 'playing'
     average = statistics.median(w['avgMs'] for w in windows)
     worst = max(w['maxMs'] for w in windows)
-    assert all(w['avgMs'] > 0 for w in windows[2:])                # the loop's own timer was running
+    # The loop ran in every window (it counted frames) and its timer measured work in some: WebKit's clock ticks in whole
+    # milliseconds, so a half-second of frames costing ~0.07 ms each can round to exactly 0 (round 1 asked for > 0 in every window).
+    assert all(w['fps'] > 0 for w in windows[2:]) and any(w['avgMs'] > 0 for w in windows[2:])
     assert average < FRAME_MS and worst < LONGEST_FRAME_MS, f'a frame costs {average:.2f} ms on average and {worst:.1f} ms at worst'
 
 
@@ -79,7 +81,7 @@ def test_a_busy_late_level_holds_its_frames_on_a_slow_phones_cpu(open_page, engi
         assert page.evaluate('__pp.state().phase') == 'playing'
         average = statistics.median(w['avgMs'] for w in windows)
         worst = max(w['maxMs'] for w in windows)
-        assert all(w['avgMs'] > 0 for w in windows[2:])
+        assert all(w['fps'] > 0 for w in windows[2:]) and any(w['avgMs'] > 0 for w in windows[2:])      # (see above)
         assert average < FRAME_MS and worst < LONGEST_FRAME_MS, f'a throttled frame costs {average:.2f} ms on average and {worst:.1f} ms at worst'
     finally:
         cdp.send('Emulation.setCPUThrottlingRate', {'rate': 1})

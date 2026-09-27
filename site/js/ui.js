@@ -15,7 +15,7 @@ const IDS = [
   'app', 'startButton', 'resumeRunButton', 'savedLine', 'againButton', 'reloadButton', 'pauseButton', 'resumeButton', 'restartButton',
   'pauseRestartButton', 'leaveButton', 'soundButton', 'helpButton', 'settingsButton',
   'levelLabel', 'lives', 'areaLabel', 'targetLabel', 'progressFill', 'targetMarker', 'starMarker', 'runnerLabel', 'scoreLabel', 'comboLabel', 'toast',
-  'levelsButton', 'levelsDialog', 'levelGrid', 'levelsTotal', 'clearStars', 'againLabel',
+  'levelsButton', 'levelsLabel', 'levelsDialog', 'levelGrid', 'levelsTotal', 'clearStars', 'againLabel',
   'clearOverlay', 'clearEyebrow', 'clearTotal', 'tally', 'nextLabel', 'clearNote', 'tutorialButton', 'bestScore',
   'titleRecords', 'versionLabel', 'versionLine', 'pauseEyebrow', 'pauseTitle', 'receipt', 'endSummary',
   'crashDetail', 'fpsMeter', 'storageNote', 'announcer',
@@ -338,6 +338,18 @@ export class UI {
     if (target) target.focus({ preventScroll: false });
   }
 
+  /* On the title, once a level has been won, the header's Pause slot (which has nothing to pause there) becomes Levels: no
+     extra row on a title that is already full on a small phone. */
+  renderLevelsButton() {
+    const { el, game, storage } = this;
+    const show = game.phase === PHASE.TITLE && storage.records.bestLevel >= 1;
+    const stars = this.totalStars();
+    el.levelsButton.hidden = !show;
+    el.pauseButton.hidden = show;
+    el.levelsLabel.textContent = `Levels ★ ${stars}`;
+    el.levelsButton.setAttribute('aria-label', `Levels, ${stars} ${plural(stars, 'star', 'stars')}`);
+  }
+
   totalStars() { return Object.values(this.storage.records.stars).reduce((sum, n) => sum + n, 0); }
 
   /* Opening a dialog pauses a live game, and the dialog owns the keyboard until it closes. The dialog is
@@ -401,8 +413,7 @@ export class UI {
     const daily = r.daily;
     el.dailyStreak.textContent = `${streakNow(daily, this.game.today())} ${plural(streakNow(daily, this.game.today()), 'day', 'days')} (best ${daily.best})`;
     this.renderDaily();
-    el.levelsButton.hidden = !(r.bestLevel >= 1);                   // the list opens once a level has been won
-    el.levelsButton.textContent = `Levels · ★ ${this.totalStars()}`;
+    this.renderLevelsButton();
     if (!storage.persistent) el.titleRecords.textContent = "Storage is blocked here, so records won't be saved.";
     else if (!r.runs) el.titleRecords.textContent = '> no runs yet';
     else {
@@ -647,6 +658,7 @@ export class UI {
     const text = el.pauseButton.querySelector('.btn-text');
     if (text) text.textContent = label;
     el.pauseButton.disabled = !(phase === PHASE.PLAYING || phase === PHASE.CLEAR || paused);
+    this.renderLevelsButton();
     el.restartButton.disabled = !(phase === PHASE.PLAYING || paused) || daily;
     el.pauseRestartButton.hidden = daily;
 

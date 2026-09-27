@@ -163,7 +163,8 @@ def test_the_levels_button_appears_after_a_win_and_the_list_replays_a_level(open
     page = open_page(viewport={'width': 1280, 'height': 800})
     assert page.locator('#levelsButton').is_hidden()
     page.evaluate("__pp.storage.updateRecords((r) => { r.bestLevel = 4; r.stars['1'] = 3; r.stars['2'] = 1; }); __pp.game.enterTitle(); __pp.ui.renderStats(); 0")
-    assert page.locator('#levelsButton').is_visible() and page.locator('#levelsButton').text_content() == 'Levels · ★ 4'
+    assert page.locator('#levelsButton').is_visible() and page.locator('#pauseButton').is_hidden()          # it takes the header's Pause slot on the title
+    assert page.locator('#levelsLabel').text_content() == 'Levels ★ 4' and page.get_attribute('#levelsButton', 'aria-label') == 'Levels, 4 stars'
     page.click('#levelsButton')
     cells = page.evaluate("[...document.querySelectorAll('#levelGrid .level-cell')].map((c) => [c.dataset.level, c.dataset.special || '', c.getAttribute('aria-label'), c.querySelectorAll('.on').length])")
     assert cells == [['1', '', 'Level 1, 3 of 3 stars', 3], ['2', '', 'Level 2, 1 of 3 stars', 1], ['3', '', 'Level 3, no stars yet', 0],
@@ -174,6 +175,7 @@ def test_the_levels_button_appears_after_a_win_and_the_list_replays_a_level(open
     page.keyboard.press('Enter')                                                             # level 4, by keyboard
     assert page.evaluate("[__pp.state().phase, __pp.state().mode, __pp.state().level]") == ['playing', 'select', 4]
     assert not page.locator('#levelsDialog').is_visible()
+    assert page.locator('#pauseButton').is_visible() and page.locator('#levelsButton').is_hidden()         # in play, Pause is back
     page.evaluate("__pp.freeze(true); __pp.game.loseLife(); __pp.game.loseLife(); __pp.game.loseLife(); 0")
     assert page.locator('#againButton').text_content() == 'Back to levels' and page.locator('#endEyebrow').text_content() == 'Replay · no lives left'
     page.click('#againButton')

@@ -179,11 +179,11 @@ def test_the_title_with_a_saved_run_on_offer_fits_every_screen_size(open_page, e
     """Resume run adds a second big button and a line of text to the title: the tallest title there is."""
     touch = mode == 'touch'
     page = open_page(viewport={'width': width, 'height': height}, dpr=dpr, has_touch=touch, is_mobile=touch)
-    page.evaluate('__pp.game.newRun({ seed: "saved" }); __pp.setPatrols([{ x: 100, y: 60 }]); __pp.cutLine("v", 40); __pp.game.run.score = 1234567; __pp.game.run.nextLifeAt = 1250000; __pp.game.persist()')    # a state the game could really reach
+    page.evaluate('__pp.game.newRun({ seed: "saved" }); __pp.setPatrols([{ x: 100, y: 60 }]); __pp.cutLine("v", 40); __pp.game.run.score = 1234567; __pp.game.run.nextLifeAt = 1250000; __pp.game.persist(); __pp.storage.updateRecords((r) => { r.bestLevel = 11; r.stars["1"] = 3; })')    # a state the game could really reach (with levels won: the Levels button shows)
     page.reload()
     page.wait_for_function('window.__pp !== undefined')
     page.wait_for_function('__pp.state().frames > 3')
-    assert page.locator('#resumeRunButton').is_visible() and page.locator('#savedLine').is_visible()
+    assert page.locator('#resumeRunButton').is_visible() and page.locator('#savedLine').is_visible() and page.locator('#levelsButton').is_visible()
     check(page.evaluate(MEASURE), touch, f'{name} title with a saved run')
     OUT.mkdir(parents=True, exist_ok=True)
     page.screenshot(path=str(OUT / f'{engine}-{name}-1b-title-saved.png'))
@@ -239,7 +239,7 @@ def test_the_daily_screens_fit_every_screen_size(open_page, engine, name, width,
     page = open_page(viewport={'width': width, 'height': height}, dpr=dpr, has_touch=touch, is_mobile=touch)
     OUT.mkdir(parents=True, exist_ok=True)
     shot = lambda tag: page.screenshot(path=str(OUT / f'{engine}-{name}-{tag}.png'))      # noqa: E731
-    page.evaluate("__pp.game.today = () => '2026-09-25'; __pp.storage.updateRecords((r) => { r.daily.streak = 6; r.daily.best = 9; r.daily.last = '2026-09-25'; r.daily.result = { level: 12, clear: 61.5, score: 1234567, progress: 0.9 }; r.runs = 12; r.bestScore = 1234567; }); __pp.ui.renderStats(); 0")
+    page.evaluate("__pp.game.today = () => '2026-09-25'; __pp.storage.updateRecords((r) => { r.daily.streak = 6; r.daily.best = 9; r.daily.last = '2026-09-25'; r.daily.result = { level: 12, clear: 61.5, score: 1234567, progress: 0.9 }; r.runs = 12; r.bestScore = 1234567; r.bestLevel = 11; r.stars['1'] = 3; }); __pp.ui.renderStats(); 0")
     settle(page)
     assert page.locator('#shareTodayButton').is_visible() and page.locator('#dailyButton').is_visible()
     check(page.evaluate(MEASURE), touch, f'{name} title, daily done')
@@ -250,7 +250,7 @@ def test_the_daily_screens_fit_every_screen_size(open_page, engine, name, width,
     page.wait_for_function('__pp.state().frames > 3')
     page.evaluate("__pp.game.today = () => '2026-09-25'; __pp.ui.renderStats(); 0")
     settle(page)
-    assert page.locator('#resumeRunButton').is_visible() and page.locator('#shareTodayButton').is_visible()
+    assert page.locator('#resumeRunButton').is_visible() and page.locator('#shareTodayButton').is_visible() and page.locator('#levelsButton').is_visible()
     check(page.evaluate(MEASURE), touch, f'{name} title, saved run and daily done')
     shot('10b-title-daily-done-saved')
     page.evaluate('__pp.game.startDaily(); __pp.game.run.score = 1234567; __pp.game.loseLife(); __pp.game.loseLife(); __pp.game.loseLife(); 0')      # today already has its counted run: this is practice
@@ -279,7 +279,7 @@ SET_NOTICE = """(what) => {
   Object.defineProperty(pwa, 'isIos', { configurable: true, get: () => what === 'ios' });
   pwa.onChange();
 }"""
-DAILY_DONE = "__pp.game.today = () => '2026-09-25'; __pp.storage.updateRecords((r) => { r.daily.streak = 6; r.daily.best = 9; r.daily.last = '2026-09-25'; r.daily.result = { level: 12, clear: 61.5, score: 1234567, progress: 0.9 }; r.runs = 12; r.bestScore = 1234567; }); __pp.ui.renderStats(); 0"
+DAILY_DONE = "__pp.game.today = () => '2026-09-25'; __pp.storage.updateRecords((r) => { r.daily.streak = 6; r.daily.best = 9; r.daily.last = '2026-09-25'; r.daily.result = { level: 12, clear: 61.5, score: 1234567, progress: 0.9 }; r.runs = 12; r.bestScore = 1234567; r.bestLevel = 11; r.stars['1'] = 3; }); __pp.ui.renderStats(); 0"
 
 
 @pytest.mark.parametrize('name,width,height,mode,dpr', SIZES, ids=[s[0] for s in SIZES])
