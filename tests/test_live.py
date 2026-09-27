@@ -73,7 +73,7 @@ def test_the_game_boots_clean_and_plays_on_the_live_site(deployed, open_page):
     page.click('#startButton')
     page.evaluate('__pp.setPatrols([{ x: 100, y: 60 }]); __pp.game.route.begin(30, 1); __pp.game.route.move(30, 71); 0')
     assert page.evaluate('__pp.state().cleared') > 5
-    assert page.locator('#versionLabel').text_content() == 'v1.0.0'
+    assert page.locator('#versionLabel').text_content() == 'v1.1.0'
 
 
 def test_the_worker_takes_the_scope_of_the_path_and_the_game_plays_offline(deployed, open_page, engine):
@@ -81,7 +81,7 @@ def test_the_worker_takes_the_scope_of_the_path_and_the_game_plays_offline(deplo
     page.wait_for_function('navigator.serviceWorker.controller !== null', timeout=60_000)
     assert page.evaluate('navigator.serviceWorker.getRegistration().then((r) => r.scope)') == deployed
     names = page.evaluate('caches.keys()')
-    assert len(names) == 1 and names[0].startswith('pathpatrol-1.0.0-')
+    assert len(names) == 1 and names[0].startswith('pathpatrol-1.1.0-')
     cached = page.evaluate("caches.open(%r).then((c) => c.keys()).then((keys) => keys.map((r) => r.url))" % names[0])
     assert cached and all(url.startswith(deployed) for url in cached) and deployed in cached
     if engine != 'chromium':

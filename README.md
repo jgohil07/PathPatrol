@@ -12,7 +12,17 @@ sign-up, no account, no ads, no tracking, no server. Everything, including your 
 of any angle and off each other; every level is a little harder than the last (speed, the share to claim, a patrol or an
 obstacle every fifth level and, from level 5, edge tracers that crawl the border and chase slowly drawn routes) until level
 31, where it holds at the hardest a skilled player can still clear. Combos, close calls, an extra life every 25,000 points,
-and three power-ups you take by drawing through them: freeze, shield and slow. Flight (planes) and Drive (cars) looks.
+and three power-ups you take by drawing through them: freeze, shield and slow. Flight (planes over water) and Drive (cars over
+farmland) looks, with drifting clouds, shoreline foam and a time of day that changes as you climb.
+
+**Trap them** — Shut a patrol into a pocket of 4% of the board or less and it is grounded: bonus points and a multiplier that
+lasts the run. From level 8 new patrols join: small fast **scouts**, big slow **bombers**, and **hunters** that wind up, then
+chase a slow pen (a confident swipe outruns them). Every fifth level is special: an **odd-shaped board**, or a **boss** you win
+at once by trapping it in 12% or less.
+
+**Stars** — Each level earns one to three: clear it, clear it without losing a life, and do that with 8 points to spare or a
+trap. Once you have won a level, **Levels** (on the title) lets you replay any level you have reached for its stars, without
+touching your best score or your saved run.
 
 **Come back to it** — Your run is saved as you play and offered as *Resume run*. Records (best score, best clear, levels won,
 your daily streak) stay in your browser. Installable, and playable offline after the first visit.
