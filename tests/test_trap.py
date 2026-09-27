@@ -189,11 +189,10 @@ def test_a_trap_shows_sparks_a_ring_and_its_word_holds_still_briefly_and_buzzes(
     page.evaluate("__pp.game.newRun({ seed: 'trap' }); __pp.freeze(true); __pp.setPatrols([{ x: 110, y: 60 }, { x: 20, y: 20 }]); 0")
     page.evaluate('__pp.cutLine("v", 104); 0')
     page.evaluate('__pp.fx.clear(); window.__buzz = []; 0')
-    page.evaluate('__pp.cutLine("h", 52); 0')
+    hold = page.evaluate('(() => { __pp.cutLine("h", 52); return __pp.loop.holdUntil - performance.now(); })()')      # (same call: see below)
     st = page.evaluate('__pp.fx.stats()')
     words = page.evaluate('__pp.fx.popups.map((p) => p.text)')
     assert 'TRAPPED' in words and st['rings'] >= 1 and st['particles'] >= 36
-    hold = page.evaluate('__pp.loop.holdUntil - performance.now()')
     assert 0 < hold <= 70
     assert [30, 20, 12, 20, 12] in page.evaluate('window.__buzz')
     assert page.locator('#comboLabel').text_content().endswith('trap x1.25')
@@ -211,6 +210,6 @@ def test_with_reduced_motion_a_lost_life_or_a_trap_does_not_hold_the_board(open_
 
 def test_a_lost_life_holds_the_board_for_a_moment(open_page):
     page = open_page(viewport={'width': 1280, 'height': 800})
-    page.evaluate("__pp.game.newRun({ seed: 'trap' }); __pp.freeze(true); __pp.game.loseLife(); 0")
-    hold = page.evaluate('__pp.loop.holdUntil - performance.now()')
+    # read in the same call as the loss: two calls apart, a slow machine (CI's WebKit) can let the whole 70 ms pass in between
+    hold = page.evaluate("(() => { __pp.game.newRun({ seed: 'trap' }); __pp.freeze(true); __pp.game.loseLife(); return __pp.loop.holdUntil - performance.now(); })()")
     assert 0 < hold <= 70
