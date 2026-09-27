@@ -47,7 +47,7 @@ def test_the_page_has_its_landmarks_once_and_one_top_heading_per_screen():
 
 def test_every_dialog_is_named_by_a_heading_that_exists():
     dialogs = ELEMENTS.with_tag('dialog')
-    assert len(dialogs) == 3
+    assert len(dialogs) == 4                                   # settings, levels, help, share
     for d in dialogs:
         heading = d['aria-labelledby']
         assert any(a.get('id') == heading for t, a in ELEMENTS.items if t in ('h2', 'h3')), heading

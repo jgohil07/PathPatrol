@@ -4,7 +4,7 @@
    Every delayed action goes through the Scheduler below, which only advances while the game is
    actually running, so pausing freezes it and restarting cancels it. The prototype used setTimeout and
    paid for it: a restarted level could "win itself" and a pause could be overridden. */
-import { START_LIVES, MAX_LIVES, LEVEL_CLEAR_DELAY, CLEAR_SKIP_AFTER, RESUME_COUNTDOWN, CELLS_PER_UNIT, SCORE, TUTORIAL, TRAP, KIND_INTRO, trapMultiplier, levelInfo } from './config.js';
+import { START_LIVES, MAX_LIVES, LEVEL_CLEAR_DELAY, CLEAR_SKIP_AFTER, RESUME_COUNTDOWN, CELLS_PER_UNIT, SCORE, TUTORIAL, TRAP, KIND_INTRO, STARS, starsFor, trapMultiplier, levelInfo } from './config.js';
 import { Grid, FIELD, WALL, ROUTE, SOLID_MASK, ROUTE_MASK, toCell } from './grid.js';
 import { buildLevel } from './level.js';
 import { buildExtraLevel } from './egg.js';
@@ -117,6 +117,7 @@ export class Game extends Emitter {
     this.tracers.reset(this.level, seed);
     this.clock.reset();
     this.powerups.reset(this.level, seed);              // after the clock: its first pickup is timed from zero
+    this.level.lifeLost = false;                        // for the stars: a new level, or a restart, starts with a clean slate
     this.flash = 0;
     this.emit('level', this.level);
   }
@@ -183,6 +184,7 @@ export class Game extends Emitter {
       level.cleared = ((level.initialPlayable - grid.countField()) / level.initialPlayable) * 100;
       level.scoreAtStart = snap.scoreAtStart;
       level.statsAtStart = snap.statsAtStart;
+      level.lifeLost = snap.lifeLost;
       this.clock.now = snap.clock;
       this.powerups.restore(level, snap.seed, snap.powerups);
       this._setPhase(PHASE.PLAYING);
@@ -304,7 +306,7 @@ export class Game extends Emitter {
     this.tally = null;
     this._setPhase(PHASE.PLAYING);
     const { mode, practice, dayKey: day } = this.run;
-    const tag = mode !== 'daily' ? '' : practice ? ' · practice' : ` · daily #${puzzleNumber(day)}`;
+    const tag = mode === 'select' ? ' · replay' : mode !== 'daily' ? '' : practice ? ' · practice' : ` · daily #${puzzleNumber(day)}`;
     const twist = { shape: ' · odd board', boss: ' · boss' }[this.level.info.special] || '';
     this.toast(`Level ${pad2(number)} · clear ${this.level.info.target}%${twist}${tag}`, 1400);
     this._introduceKinds();
@@ -378,6 +380,7 @@ export class Game extends Emitter {
     if (this.run.mode === 'tutorial' || this.run.mode === 'extra') { this.flash = 0.34; return; }          // practice: the red flash, and nothing lost
     this.run.lives--;
     this.run.combo = 1;
+    this.level.lifeLost = true;
     this.flash = 0.34;
     this.emit('life', { lives: this.run.lives });
     this.emit('hud');
@@ -402,8 +405,9 @@ export class Game extends Emitter {
       },
     };
     if (run.mode === 'daily') this.report.daily = this._dailyReport(run, level);
+    if (run.mode === 'select') this.report.newBest = { score: false, clear: false, level: false };      // a replay sets no records
     this.flash = 0;                        // the game-over card replaces the flash; nothing left to animate
-    this.storage.clearSnapshot();          // a finished run is not resumable
+    if (run.mode !== 'select') this.storage.clearSnapshot();          // a finished run is not resumable (a replay never had one: the saved run is left alone)
     this._setPhase(PHASE.OVER);
     this.emit('over', this.report);
   }
@@ -463,7 +467,7 @@ export class Game extends Emitter {
     const { run } = this;
     if (!run || points <= 0) return;
     run.score += points;
-    this.storage.updateRecords((r) => { r.bestScore = Math.max(r.bestScore, run.score); });
+    if (run.mode !== 'select') this.storage.updateRecords((r) => { r.bestScore = Math.max(r.bestScore, run.score); });
     while (run.score >= run.nextLifeAt) {
       run.nextLifeAt += SCORE.extraLifeEvery;
       if (run.lives < MAX_LIVES) {
@@ -507,13 +511,13 @@ export class Game extends Emitter {
       const who = boss ? 'Boss trapped' : trapped.length === 1 ? 'Patrol trapped' : `${trapped.length} patrols trapped`;
       this.toast(`${sweep && !boss ? 'Clean sweep · ' : ''}${who} · +${result.trapPoints.toLocaleString('en-US')}`, 1600);
     }
-    if (real) this.storage.updateRecords((r) => { r.bestClear = Math.max(r.bestClear, level.cleared); });
+    if (real && this.run.mode !== 'select') this.storage.updateRecords((r) => { r.bestClear = Math.max(r.bestClear, level.cleared); });
     this.emit('capture', result);
     if (real) this._addScore(result.points);
     this.emit('hud');
     if (real && level.cleared >= level.info.target) this._levelWon();
     if (this.run && this.run.mode === 'extra' && level.cleared >= level.info.target) this._extraCleared();
-    if (real) this.persist();
+    if (real) this.persist();                   // (takeSnapshot refuses a replay: it never overwrites the saved run)
     return result;
   }
 
@@ -574,15 +578,56 @@ export class Game extends Emitter {
     };
     tally.bonus = tally.overshootBonus + tally.livesBonus + tally.timeBonus;
     tally.total = tally.capturePoints + tally.bonus;
+    // The stars: this level's own record, whatever the rest of the run did.
+    const trapped = run.stats.traps - ((level.statsAtStart && level.statsAtStart.traps) || 0);
+    tally.stars = starsFor({ lifeLost: !!level.lifeLost, overshoot, trapped });
+    const campaign = run.mode === 'normal' || run.mode === 'select';            // the campaign's boards (the daily's are its own)
+    const before = campaign ? this.storage.records.stars[number] || 0 : 0;
+    tally.bestStars = campaign ? Math.max(before, tally.stars) : null;
+    tally.newStars = campaign && tally.stars > before;
+    tally.select = run.mode === 'select';
     run.stats.levelsCleared++;
     this._addScore(tally.bonus);
     this.tally = tally;
     this._setPhase(PHASE.CLEAR);
-    this.storage.updateRecords((r) => { r.wins++; r.bestLevel = Math.max(r.bestLevel, number); });
+    this.storage.updateRecords((r) => {
+      if (run.mode !== 'select') { r.wins++; r.bestLevel = Math.max(r.bestLevel, number); }       // only the campaign unlocks levels
+      if (campaign && number <= STARS.maxLevel) r.stars[number] = Math.max(r.stars[number] || 0, tally.stars);
+    });
     this._clearAt = this.clock.now;
-    this.clock.after(LEVEL_CLEAR_DELAY, () => this.startLevel(number + 1));
+    this.clock.after(LEVEL_CLEAR_DELAY, () => (run.mode === 'select' ? this.finishSelect() : this.startLevel(number + 1)));
     this.emit('clear', tally);
     this.emit('hud');
+  }
+
+  /* --- level select: replaying one level of the campaign for its stars ------------------------------------------ */
+
+  /* The levels a player may replay: every one reached in the campaign, and the next. */
+  selectableUpTo() { return Math.min(STARS.maxLevel, this.storage.records.bestLevel + 1); }
+
+  /* From the title only. The campaign's board for that level, three lives, a fresh score. It records stars and nothing
+     else: no best score, no best clear, no wins or levels unlocked, no saved run (the one on offer is left alone), and it
+     is not a run in the records. It ends back at the level list. */
+  startSelect(number) {
+    if (this.phase !== PHASE.TITLE || !Number.isInteger(number) || number < 1 || number > this.selectableUpTo()) return false;
+    const records = this.storage.records;
+    this.run = {
+      seed: CAMPAIGN_SEED, mode: 'select', dayKey: null, practice: false, lives: START_LIVES, score: 0, combo: 1, nextLifeAt: SCORE.extraLifeEvery,
+      stats: { captures: 0, closeCalls: 0, levelsCleared: 0, traps: 0 },
+      best0: { score: records.bestScore, clear: records.bestClear, level: records.bestLevel },
+    };
+    this.report = null;
+    this.tally = null;
+    this.tutorial.stop();
+    this.startLevel(number);
+    return true;
+  }
+
+  /* A replay is over (won, or given up from game over): back to the title, where the level list opens again. */
+  finishSelect() {
+    const number = this.level ? this.level.number : 1;
+    this.enterTitle();
+    this.emit('selectDone', { level: number });
   }
 
   _extraCleared() {
@@ -599,6 +644,7 @@ export class Game extends Emitter {
     if (this.phase !== PHASE.CLEAR) return false;
     if (this.clock.now - this._clearAt < CLEAR_SKIP_AFTER) return false;
     if (this.tally && this.tally.extra) this.enterTitle();                                   // the extra board's finish screen: back to the title
+    else if (this.tally && this.tally.select) this.finishSelect();                           // a replay: back to the levels
     else if (this.tally && this.tally.tutorial) { if (this.tally.origin === 'daily') this.startDaily(); else this.newRun(); }       // the tutorial's finish screen: Play
     else this.startLevel(this.level.number + 1);                 // building the level resets the clock, which drops the automatic advance
     return true;
@@ -665,6 +711,9 @@ export class Game extends Emitter {
       score: this.run ? this.run.score : 0,
       combo: this.run ? this.run.combo : 1,
       trapMult: this.run && this.run.stats ? trapMultiplier(this.run.stats.traps || 0) : 1,
+      starLine: Math.min(100, (level ? level.info.target : first.target) + STARS.overshoot),            // the three-star mark on the meter
+      lifeLost: !!(level && level.lifeLost),
+      trappedHere: level && this.run && level.statsAtStart ? this.run.stats.traps - (level.statsAtStart.traps || 0) : 0,
       target: level ? level.info.target : first.target,
       cleared: level ? level.cleared : 0,
       patrols: level ? level.patrols.length : first.patrols,

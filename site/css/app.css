@@ -133,6 +133,11 @@ kbd.only-fine { --show: inline-block; }
 .meter { position: relative; flex: 1 1 60px; height: 4px; min-width: 60px; background: rgba(255, 255, 255, .09); border-radius: 2px; }
 .meter i { position: absolute; inset: 0 auto 0 0; width: 0; background: linear-gradient(90deg, var(--aqua-dim), var(--aqua)); border-radius: inherit; box-shadow: 0 0 10px rgba(114, 244, 209, .4); transition: width .25s ease; }
 .meter b { position: absolute; top: -4px; bottom: -4px; left: 65%; width: 2px; background: var(--amber); box-shadow: 0 0 8px rgba(255, 179, 106, .6); }
+/* The three-star mark: where three stars begin, bright while they are still possible on this level, dim once a life is
+   lost on it, solid gold once a trap has already earned the third. */
+.meter b.star-mark { width: 2px; background: #f4e3a1; box-shadow: 0 0 8px rgba(244, 227, 161, .55); transition: opacity .2s ease; }
+.meter b.star-mark.lost { opacity: .22; box-shadow: none; }
+.meter b.star-mark.got { width: 4px; background: #ffd166; box-shadow: 0 0 10px rgba(255, 209, 102, .8); }
 
 /* Messages appear on a single console line so they never sit on the board where routes start. */
 .console { min-height: 20px; margin: 0; padding-bottom: 6px; overflow: hidden; color: var(--muted); font-size: 11.5px; white-space: nowrap; text-overflow: ellipsis; opacity: 0; transition: opacity .2s ease; }
@@ -216,6 +221,7 @@ kbd { display: inline-block; min-width: 1.7em; margin-inline: 1px; padding: 2px 
 .daily-line:empty { display: none; }
 .records { color: var(--muted); font-size: 11.5px; }
 .records:empty { display: none; }
+.btn--levels { padding-block: 6px; }
 .saved { color: var(--amber); font-size: 11.5px; }
 .app[data-saved="yes"] .overlay--title .fine, .app[data-daily="done"] .overlay--title .fine { display: none; }          /* someone resuming knows how to play; the room is needed for the second button */
 .fine { color: var(--muted); font-size: 11px; }
@@ -374,3 +380,21 @@ kbd { display: inline-block; min-width: 1.7em; margin-inline: 1px; padding: 2px 
 /* ---- the extra board's colours ------------------------------------------------- */
 
 :root[data-extra] { --bg: #0a0614; --raised: #100a1e; --aqua: #ff7bf0; --aqua-dim: #b23fa8; --line: rgba(232, 190, 255, .14); --line-strong: rgba(232, 190, 255, .32); }
+
+/* Stars: on the win screen they arrive one by one (they simply appear with reduced motion); the level list shows the best of each. */
+.stars { display: flex; justify-content: center; gap: 6px; margin: 2px 0 -2px; font: 700 24px/1 var(--font-ui); color: rgba(255, 255, 255, .16); }
+.stars .on { color: #ffd166; text-shadow: 0 0 12px rgba(255, 209, 102, .55); }
+.stars .on { animation: star-in .34s cubic-bezier(.2, 1.4, .4, 1) both; }          /* (the reduced-motion rules above switch it off) */
+.stars .on:nth-child(2) { animation-delay: .22s; }
+.stars .on:nth-child(3) { animation-delay: .44s; }
+@keyframes star-in { from { transform: scale(.2); opacity: 0; } to { transform: none; opacity: 1; } }
+.levels-note { margin-top: -4px; }
+.levels-total { color: #ffd166; font: 500 12px/1 var(--font-ui); letter-spacing: .08em; }
+.level-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(62px, 1fr)); gap: 8px; }
+.level-cell { display: grid; place-items: center; gap: 3px; min-height: 60px; padding: 6px 2px; border: 1px solid var(--line-strong); border-radius: 8px; background: transparent; color: var(--ink); font: 500 15px/1 var(--font-ui); cursor: pointer; }
+.level-cell small { font-size: 11px; letter-spacing: .1em; color: rgba(255, 255, 255, .2); }
+.level-cell small .on { color: #ffd166; }
+.level-cell[data-special="boss"] { border-color: rgba(255, 92, 200, .45); }
+.level-cell[data-special="shape"] { border-style: dashed; }
+.level-cell:focus-visible { outline: 2px solid var(--aqua); outline-offset: 2px; }
+@media (hover: hover) { .level-cell:hover { border-color: var(--aqua-dim); } }

@@ -60,6 +60,11 @@ export const SCORE = Object.freeze({
    same way). Trapping the last patrol claims the whole board. The boss is trapped in a pocket of up to bossShare, pays
    bossPoints x combo, and trapping it clears the level at once (the rest of the board is claimed with it). */
 export const TRAP = Object.freeze({ maxShare: 0.04, points: 1500, multStep: 0.25, multCap: 2, bossShare: 0.12, bossPoints: 5000 });
+/* Stars on the win screen: one for clearing the level, two for clearing it without losing a life on it (a restart gives a
+   fresh chance), three for that and either claiming at least `overshoot` points over the target or trapping a patrol on
+   it. Kept per level (the campaign's boards: ordinary runs and level-select replays, not the daily), the best of each. */
+export const STARS = Object.freeze({ overshoot: 8, maxLevel: 99 });
+export const starsFor = ({ lifeLost, overshoot, trapped }) => (lifeLost ? 1 : overshoot >= STARS.overshoot || trapped > 0 ? 3 : 2);
 export const trapMultiplier = (traps) => Math.min(TRAP.multCap, 1 + TRAP.multStep * traps);
 
 /* The tutorial: one slow patrol on level 1's board and three coached steps. */

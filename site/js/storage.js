@@ -1,7 +1,7 @@
 /* Persistence. Everything goes through here so a blocked, full or corrupt localStorage can never
    stop the game: reads fall back to defaults, writes fall back to memory, and `persistent` tells the
    UI whether progress will survive a reload. */
-import { STORAGE_KEY, LEGACY_KEY, SNAPSHOT_KEY, KIND_NAMES } from './config.js';
+import { STORAGE_KEY, LEGACY_KEY, SNAPSHOT_KEY, KIND_NAMES, STARS } from './config.js';
 import { isDay } from './daily.js';
 
 const THEMES = ['flight', 'drive'];
@@ -10,7 +10,7 @@ const MOTIONS = ['auto', 'reduced', 'full'];
 export const defaultData = () => ({
   v: 2,
   settings: { sound: true, haptics: true, theme: 'flight', motion: 'auto', showFps: false, tutorialDone: false, installHintSeen: false, seenKinds: [] },
-  records: { bestScore: 0, bestClear: 0, bestLevel: 0, runs: 0, wins: 0, daily: { streak: 0, best: 0, last: '', result: null } },
+  records: { bestScore: 0, bestClear: 0, bestLevel: 0, runs: 0, wins: 0, daily: { streak: 0, best: 0, last: '', result: null }, stars: {} },
 });
 
 const count = (value, fallback) => (Number.isFinite(value) && value >= 0 ? value : fallback);
@@ -33,6 +33,17 @@ function cleanDaily(input) {
   return out;
 }
 
+/* Best stars per level: keys "1".."99", values 1..3. Anything else is dropped, key by key. */
+function cleanStars(input) {
+  const out = {};
+  if (!isObject(input) || Array.isArray(input)) return out;
+  for (const [key, value] of Object.entries(input)) {
+    const level = Number(key);
+    if (String(level) === key && Number.isInteger(level) && level >= 1 && level <= STARS.maxLevel && Number.isInteger(value) && value >= 1 && value <= 3) out[key] = value;
+  }
+  return out;
+}
+
 /* Merge untrusted JSON over the defaults; unknown keys and wrong types are dropped. */
 export function sanitize(input) {
   const out = defaultData();
@@ -46,8 +57,9 @@ export function sanitize(input) {
   if (typeof settings.tutorialDone === 'boolean') out.settings.tutorialDone = settings.tutorialDone;
   if (typeof settings.installHintSeen === 'boolean') out.settings.installHintSeen = settings.installHintSeen;
   if (Array.isArray(settings.seenKinds)) out.settings.seenKinds = KIND_NAMES.filter((k) => settings.seenKinds.includes(k));       // known kinds only, once each
-  for (const key of Object.keys(out.records)) out.records[key] = count(records[key], out.records[key]);       // (the daily's record is not a number: it keeps its default here, and is read properly next)
+  for (const key of Object.keys(out.records)) out.records[key] = count(records[key], out.records[key]);       // (the daily's record and the stars are not numbers: they keep their defaults here, and are read properly next)
   out.records.daily = cleanDaily(records.daily);
+  out.records.stars = cleanStars(records.stars);
   return out;
 }
 

@@ -87,7 +87,7 @@
           <div class="stat stat--clear">
             <span class="stat-key">CLR</span><strong class="stat-val" id="areaLabel">0.0%</strong>
             <span class="stat-target"><span class="chevron" aria-hidden="true"></span><span id="targetLabel">65%</span></span>
-            <div class="meter" aria-hidden="true"><i id="progressFill"></i><b id="targetMarker"></b></div>
+            <div class="meter" aria-hidden="true"><i id="progressFill"></i><b id="targetMarker"></b><b class="star-mark" id="starMarker"></b></div>
           </div>
           <div class="stat stat--score">
             <span class="stat-key">SCORE</span>
@@ -117,6 +117,7 @@
               <p class="daily-line" id="dailyLine"></p>
               <button type="button" class="btn btn--daily" id="shareTodayButton" hidden>Share today's result</button>
               <p class="records" id="titleRecords"></p>
+              <button type="button" class="btn btn--quiet btn--levels" id="levelsButton" hidden>Levels</button>
               <button type="button" class="btn btn--quiet" id="appNotice" hidden>Install app</button>
               <p class="fine">Start on an edge · draw across · finish on an edge</p>
             </div>
@@ -137,6 +138,7 @@
           <div class="overlay overlay--clear" id="clearOverlay">
             <div class="panel">
               <span class="eyebrow" id="clearEyebrow">Level cleared</span>
+              <p class="stars" id="clearStars" hidden></p>
               <strong class="big" id="clearTotal">+0</strong>
               <dl class="receipt" id="tally"></dl>
               <p class="fine" id="clearNote" hidden></p>
@@ -152,7 +154,7 @@
               <p class="fine" id="endSummary"></p>
               <div class="cta">
                 <button type="button" class="btn btn--primary btn--big" id="shareButton" hidden>Share result</button>
-                <button type="button" class="btn btn--primary btn--big" id="againButton"><svg class="icon" aria-hidden="true"><use href="#i-play" /></svg>New run</button>
+                <button type="button" class="btn btn--primary btn--big" id="againButton"><svg class="icon" aria-hidden="true"><use href="#i-play" /></svg><span id="againLabel">New run</span></button>
               </div>
             </div>
           </div>
@@ -226,6 +228,18 @@
         </dl>
         <button class="btn btn--danger" id="resetStatsButton" type="button">Reset local records</button>
         <p class="fine version-line">Path Patrol <span id="versionLine">v1.0.0</span></p>
+      </form>
+    </dialog>
+
+    <dialog class="dialog" id="levelsDialog" aria-labelledby="levelsTitle">
+      <form method="dialog" class="dialog-body">
+        <header class="dialog-head">
+          <h2 id="levelsTitle">Levels</h2>
+          <button class="btn btn--icon" value="close" aria-label="Close levels"><svg class="icon" aria-hidden="true"><use href="#i-close" /></svg></button>
+        </header>
+        <p class="fine levels-note">Replay any level you have reached for its stars. Your best score and your saved run are left alone.</p>
+        <p class="levels-total" id="levelsTotal"></p>
+        <div class="level-grid" id="levelGrid" role="list"></div>
       </form>
     </dialog>
 

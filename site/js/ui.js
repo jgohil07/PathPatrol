@@ -3,7 +3,7 @@
 
    Screen-reader output goes through announce(): messages raised in the same tick are joined into one
    sentence, because a polite live region rewritten twice in a row reads only the last write. */
-import { START_LIVES, APP_VERSION, levelInfo } from './config.js';
+import { START_LIVES, APP_VERSION, STARS, levelInfo } from './config.js';
 import { PHASE } from './game.js';
 import { lastInput } from './input.js';
 import { GLYPHS, POWER_NAMES } from './glyphs.js';
@@ -14,7 +14,8 @@ import { createEgg } from './egg.js';
 const IDS = [
   'app', 'startButton', 'resumeRunButton', 'savedLine', 'againButton', 'reloadButton', 'pauseButton', 'resumeButton', 'restartButton',
   'pauseRestartButton', 'leaveButton', 'soundButton', 'helpButton', 'settingsButton',
-  'levelLabel', 'lives', 'areaLabel', 'targetLabel', 'progressFill', 'targetMarker', 'runnerLabel', 'scoreLabel', 'comboLabel', 'toast',
+  'levelLabel', 'lives', 'areaLabel', 'targetLabel', 'progressFill', 'targetMarker', 'starMarker', 'runnerLabel', 'scoreLabel', 'comboLabel', 'toast',
+  'levelsButton', 'levelsDialog', 'levelGrid', 'levelsTotal', 'clearStars', 'againLabel',
   'clearOverlay', 'clearEyebrow', 'clearTotal', 'tally', 'nextLabel', 'clearNote', 'tutorialButton', 'bestScore',
   'titleRecords', 'versionLabel', 'versionLine', 'pauseEyebrow', 'pauseTitle', 'receipt', 'endSummary',
   'crashDetail', 'fpsMeter', 'storageNote', 'announcer',
@@ -106,7 +107,8 @@ export class UI {
     const click = (node, handler) => node.addEventListener('click', handler);
     click(el.startButton, () => this.startRun());
     click(el.resumeRunButton, () => game.resumeRun());
-    click(el.againButton, () => this.startRun());
+    click(el.againButton, () => (game.report && game.report.mode === 'select' ? game.finishSelect() : this.startRun()));      // a replay's card goes back to the levels
+    click(el.levelsButton, () => this.openLevels());
     click(el.dailyButton, () => this.startDaily());
     click(el.appNotice, () => this.appAction());
     click(el.appButton, () => this.appAction());
@@ -132,7 +134,7 @@ export class UI {
     click(el.resetStatsButton, () => this.pressReset());
     click(el.clearOverlay, () => game.skipClear());               // the Next button is inside it, so its click lands here too
 
-    for (const dialog of [el.settingsDialog, el.helpDialog, el.shareDialog]) {
+    for (const dialog of [el.settingsDialog, el.helpDialog, el.shareDialog, el.levelsDialog]) {
       dialog.addEventListener('click', (event) => {          // a click on the backdrop lands on the dialog itself
         if (event.target !== dialog) return;
         const r = dialog.getBoundingClientRect();
@@ -152,6 +154,7 @@ export class UI {
     game.on('phase', () => this.renderPhase());
     game.on('countdown', () => this.renderPhase());
     game.on('over', (report) => this.renderOver(report));
+    game.on('selectDone', ({ level }) => this.openLevels(level));
     game.on('crash', ({ error }) => this.renderCrash(error));
     game.on('route', (event) => { if (event.type === 'edge-hint') this.hintEdge(); });
     game.on('levelStart', ({ lives }) => this.announce(`${lives} ${plural(lives, 'life', 'lives')}`));
@@ -295,10 +298,47 @@ export class UI {
 
   /* --- dialogs ------------------------------------------------------------------------------- */
 
-  isModalOpen() { return this.el.settingsDialog.open || this.el.helpDialog.open || this.el.shareDialog.open; }
+  isModalOpen() { return this.el.settingsDialog.open || this.el.helpDialog.open || this.el.shareDialog.open || this.el.levelsDialog.open; }
 
   openSettings() { this._openDialog(this.el.settingsDialog); }
   openHelp() { this._openDialog(this.el.helpDialog); }
+
+  /* The level list: every level reached in the campaign and the next, each with its best stars (and a mark for a special
+     level), built node by node. Picking one replays it (game.startSelect). `focus` is the level to put the focus on. */
+  openLevels(focus = null) {
+    const { el, game, storage } = this;
+    if (game.phase !== PHASE.TITLE || this.isModalOpen()) return;
+    const upTo = game.selectableUpTo();
+    const stars = storage.records.stars;
+    const cells = [];
+    for (let n = 1; n <= upTo; n++) {
+      const got = stars[n] || 0;
+      const special = levelInfo(n).special;
+      const cell = document.createElement('button');
+      cell.type = 'button';
+      cell.className = 'level-cell';
+      cell.setAttribute('role', 'listitem');
+      if (special) cell.dataset.special = special;
+      cell.dataset.level = String(n);
+      const what = special === 'boss' ? ', boss' : special === 'shape' ? ', odd board' : '';
+      cell.setAttribute('aria-label', `Level ${n}${what}, ${got ? `${got} of 3 stars` : 'no stars yet'}`);
+      const num = document.createElement('span');
+      num.textContent = pad2(n);
+      const row = document.createElement('small');
+      row.setAttribute('aria-hidden', 'true');
+      for (let k = 1; k <= 3; k++) { const star = document.createElement('span'); star.textContent = '★'; if (k <= got) star.className = 'on'; row.append(star); }
+      cell.append(num, row);
+      cell.addEventListener('click', () => { el.levelsDialog.close(); game.startSelect(n); });
+      cells.push(cell);
+    }
+    el.levelGrid.replaceChildren(...cells);
+    el.levelsTotal.textContent = `★ ${this.totalStars()} of ${upTo * 3}`;
+    this._openDialog(el.levelsDialog);
+    const target = cells[Math.max(0, Math.min(cells.length, focus || cells.length) - 1)];
+    if (target) target.focus({ preventScroll: false });
+  }
+
+  totalStars() { return Object.values(this.storage.records.stars).reduce((sum, n) => sum + n, 0); }
 
   /* Opening a dialog pauses a live game, and the dialog owns the keyboard until it closes. The dialog is
      opened first: on close the browser returns focus to whatever had it when the dialog opened, and pausing
@@ -325,6 +365,9 @@ export class UI {
     el.areaLabel.textContent = `${h.cleared.toFixed(1)}%`;
     el.progressFill.style.width = `${Math.min(100, h.cleared)}%`;
     el.targetMarker.style.left = `${h.target}%`;
+    el.starMarker.style.left = `${h.starLine}%`;
+    el.starMarker.classList.toggle('lost', h.lifeLost);
+    el.starMarker.classList.toggle('got', !h.lifeLost && h.trappedHere > 0);
     const word = this.storage.settings.theme === 'flight' ? 'PLANE' : 'CAR';
     el.runnerLabel.textContent = `${h.patrols} ${word}${h.patrols === 1 ? '' : 'S'}`;
     el.scoreLabel.textContent = number(h.score);
@@ -358,6 +401,8 @@ export class UI {
     const daily = r.daily;
     el.dailyStreak.textContent = `${streakNow(daily, this.game.today())} ${plural(streakNow(daily, this.game.today()), 'day', 'days')} (best ${daily.best})`;
     this.renderDaily();
+    el.levelsButton.hidden = !(r.bestLevel >= 1);                   // the list opens once a level has been won
+    el.levelsButton.textContent = `Levels · ★ ${this.totalStars()}`;
     if (!storage.persistent) el.titleRecords.textContent = "Storage is blocked here, so records won't be saved.";
     else if (!r.runs) el.titleRecords.textContent = '> no runs yet';
     else {
@@ -365,6 +410,8 @@ export class UI {
       if (r.bestScore) parts.push(`best ${number(r.bestScore)}`);
       if (r.bestClear) parts.push(`clear ${r.bestClear.toFixed(1)}%`);
       if (r.bestLevel) parts.push(`top level ${pad2(r.bestLevel)}`);
+      const stars = this.totalStars();
+      if (stars) parts.push(`★ ${stars}`);
       parts.push(`${r.runs} ${plural(r.runs, 'run', 'runs')}`);
       el.titleRecords.textContent = `> ${parts.join(' · ')}`;
     }
@@ -629,9 +676,11 @@ export class UI {
       ['Captures', String(report.stats.captures)],
       ['Close calls', String(report.stats.closeCalls)],
     ];
-    el.endEyebrow.textContent = !daily ? 'No lives left' : daily.practice ? 'Practice · no lives left' : `Daily #${daily.number} · no lives left`;
+    const replay = report.mode === 'select';
+    el.endEyebrow.textContent = replay ? 'Replay · no lives left' : !daily ? 'No lives left' : daily.practice ? 'Practice · no lives left' : `Daily #${daily.number} · no lives left`;
+    el.againLabel.textContent = replay ? 'Back to levels' : 'New run';
     if (daily) receiptRows.unshift(['Daily', `#${daily.number}`, daily.practice ? 'PRACTICE' : '']);
-    el.endSummary.textContent = !daily ? (best.score ? 'A new high score. Go again?' : 'Start fresh and find a cleaner line.')
+    el.endSummary.textContent = replay ? 'A replay sets no records. Pick it again, or another level.' : !daily ? (best.score ? 'A new high score. Go again?' : 'Start fresh and find a cleaner line.')
       : daily.practice ? "Practice runs don't count towards your streak or your shared result."
       : `Streak: ${daily.streak} ${plural(daily.streak, 'day', 'days')}. A new board tomorrow.`;
     el.shareButton.hidden = !(daily && daily.text);
@@ -642,9 +691,19 @@ export class UI {
   }
 
   /* The win screen: what the level's captures scored, then each bonus. */
+  /* One to three stars, the earned ones lit (they arrive one by one, unless motion is reduced). */
+  renderStars(count) {
+    const { el } = this;
+    el.clearStars.hidden = false;
+    el.clearStars.setAttribute('aria-label', `${count} of 3 stars`);
+    el.clearStars.setAttribute('role', 'img');
+    el.clearStars.replaceChildren(...[1, 2, 3].map((k) => { const s = document.createElement('span'); s.textContent = '★'; if (k <= count) s.className = 'on'; return s; }));
+  }
+
   renderTally(t) {
     const { el } = this;
     if (t.extra) {
+      el.clearStars.hidden = true;
       el.nextLabel.textContent = 'Back to title';
       el.clearNote.hidden = true;
       el.clearEyebrow.textContent = 'Sector 0 cleared';
@@ -655,6 +714,7 @@ export class UI {
     }
     el.nextLabel.textContent = t.tutorial ? 'Play' : 'Next level';
     el.clearNote.hidden = !t.tutorial;
+    el.clearStars.hidden = true;
     if (t.tutorial) {
       el.clearEyebrow.textContent = 'Tutorial complete';
       el.clearTotal.textContent = 'Nice work.';
@@ -665,13 +725,15 @@ export class UI {
     }
     el.clearEyebrow.textContent = `Level ${pad2(t.level)} cleared`;
     el.clearTotal.textContent = `+${number(t.total)}`;
+    el.nextLabel.textContent = t.select ? 'Back to levels' : 'Next level';
+    this.renderStars(t.stars);
     fillRows(el.tally, [
       ['Captures', `+${number(t.capturePoints)}`],
       [`Overshoot ${t.overshoot.toFixed(1)}%`, `+${number(t.overshootBonus)}`],
       [`Lives x${t.lives}`, `+${number(t.livesBonus)}`],
       [`Time ${Math.round(t.seconds)} s`, `+${number(t.timeBonus)}`],
     ]);
-    this.announce(`Level ${t.level} cleared. ${number(t.total)} points`);
+    this.announce(`Level ${t.level} cleared. ${number(t.total)} points. ${t.stars} of 3 stars${t.newStars ? ', a new best' : ''}`);
   }
 
   /* The details are for developers (?debug=1); a player only sees "Something broke". WebKit's stack

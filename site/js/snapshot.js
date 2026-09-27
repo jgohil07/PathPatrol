@@ -62,10 +62,10 @@ export function decodeGrid(rle, cells) {
 
 /* --- taking a snapshot ------------------------------------------------------------------------------------ */
 
-/* null when there is nothing worth resuming: no run, the tutorial, the extra board, or a run that has ended. */
+/* null when there is nothing worth resuming: no run, the tutorial, the extra board, a level-select replay, or a run that has ended. */
 export function takeSnapshot(game, now = Date.now()) {
   const { run, level, phase } = game;
-  if (!run || !level || run.mode === 'tutorial' || run.mode === 'extra') return null;
+  if (!run || !level || run.mode === 'tutorial' || run.mode === 'extra' || run.mode === 'select') return null;     // (a replay never overwrites the saved run)
   if (phase !== 'playing' && phase !== 'paused' && phase !== 'countdown' && phase !== 'clear') return null;
   const base = {
     v: SNAPSHOT_VERSION, app: APP_VERSION, savedAt: now,
@@ -76,7 +76,7 @@ export function takeSnapshot(game, now = Date.now()) {
   if (phase === 'clear') return { ...base, level: level.number + 1, fresh: true };
   return {
     ...base, level: level.number, fresh: false,
-    scoreAtStart: level.scoreAtStart, statsAtStart: { ...level.statsAtStart }, clock: game.clock.now,
+    scoreAtStart: level.scoreAtStart, statsAtStart: { ...level.statsAtStart }, lifeLost: !!level.lifeLost, clock: game.clock.now,
     grid: encodeGrid(game.grid.cells),
     patrols: level.patrols.map((p) => [p.x, p.y, p.vx, p.vy, p.heading, p.kind]),
     tracers: game.tracers.toJSON(),
@@ -142,6 +142,7 @@ export function validateSnapshot(raw, { now = Date.now(), today = null } = {}) {
 
   const startStats = cleanStats(raw.statsAtStart);
   if (!startStats || !isCount(raw.scoreAtStart) || raw.scoreAtStart > r.score) return null;
+  if (typeof raw.lifeLost !== 'boolean') return null;
   if (!Number.isFinite(raw.clock) || raw.clock < 0 || raw.clock > 24 * 3600) return null;
   if (!Array.isArray(raw.grid) || !Array.isArray(raw.patrols) || !Array.isArray(raw.routes)) return null;
   if (raw.patrols.length > MAX_PATROLS) return null;                          // (none at all is fine: a trap can take the last one)
@@ -168,5 +169,5 @@ export function validateSnapshot(raw, { now = Date.now(), today = null } = {}) {
     routes.push(route.slice());
   }
   if (raw.grid.length > GRID_W * GRID_H * 2) return null;
-  return { ...out, scoreAtStart: raw.scoreAtStart, statsAtStart: startStats, clock: raw.clock, grid: raw.grid.slice(), patrols, tracers, powerups, routes };
+  return { ...out, scoreAtStart: raw.scoreAtStart, statsAtStart: startStats, lifeLost: raw.lifeLost, clock: raw.clock, grid: raw.grid.slice(), patrols, tracers, powerups, routes };
 }
