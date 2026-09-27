@@ -623,13 +623,17 @@ def test_the_worker_answers_only_same_origin_gets_from_its_cache_and_leaves_the_
     seen = {}
     page.on('response', lambda r: seen.__setitem__((r.request.method, r.url), (r.status, r.from_service_worker)))
     page.evaluate("""(other) => Promise.all([fetch('/index.html'), fetch('/og.png'), fetch('/no-such-file.txt'),
-      fetch('/somewhere', { method: 'POST', body: 'a' }), fetch(other + '/index.html', { mode: 'no-cors' })]).then(() => 0)""", other_url)
+      fetch('/somewhere', { method: 'POST', body: 'a' }), fetch(other + '/og.png', { mode: 'no-cors' })]).then(() => 0)""", other_url)
+    # Another origin's file is an image: a no-cors HTML response is blocked by the browser (Opaque Response Blocking) and
+    # reported as a failed request, whose event raced the clear() below (it failed CI once, 2026-09-27). fetch() resolves on
+    # the headers, so wait for the image's timing entry (written when its body is in) before that server is shut down.
+    page.wait_for_function(f"performance.getEntriesByName('{other_url}/og.png').length > 0")
     base = release_site.url
     assert seen[('GET', base + '/index.html')] == (200, True)                              # the shell: from the cache
     assert seen[('GET', base + '/og.png')] == (200, True)                                  # not in the shell: the worker lets the network answer
     assert seen[('GET', base + '/no-such-file.txt')] == (404, True)                        # and the network's answer is what comes back
     assert seen[('POST', base + '/somewhere')][1] is False                                 # a request that changes something is none of its business
-    assert seen[('GET', other_url + '/index.html')] == (200, False)                        # nor is another site's
+    assert seen[('GET', other_url + '/og.png')] == (200, False)                            # nor is another site's
     page.problems.clear()                                                                  # (the 404 and the 501 are on purpose)
     other.shutdown()
     other.server_close()
