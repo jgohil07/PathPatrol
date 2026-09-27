@@ -182,6 +182,6 @@ export class Sound {
     game.on('trap', () => this.trap());
     game.on('extraLife', () => this.extraLife());
     game.on('clear', () => this.clear());
-    game.on('over', () => this.over());
+    game.on('over', (report) => (report && report.finished ? this.clear() : this.over()));      // expert's finish is a win
   }
 }

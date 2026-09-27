@@ -161,8 +161,7 @@ export function createStorage(backend) {
       return data.records;
     },
     reload() { data = load(); },
-    /* The run in progress, in one of two slots: 'run' (the campaign's or the daily's) and 'expert'. The caller validates
-       what comes back: this only keeps and returns it. */
+    /* The run in progress, in slot 'run' or 'expert'. The caller validates what comes back: this only keeps it. */
     saveSnapshot(snapshot, slot = 'run') { write(slotKey(slot), JSON.stringify(snapshot)); },
     loadSnapshot(slot = 'run') {
       const key = slotKey(slot);

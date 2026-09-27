@@ -91,7 +91,7 @@ export const TUTORIAL = Object.freeze({
 
 export const STORAGE_KEY = 'pathpatrol:v2';
 export const SNAPSHOT_KEY = 'pathpatrol:v2:run';      // a run in progress, separate from settings and records
-export const EXPERT_SNAPSHOT_KEY = 'pathpatrol:v2:expert';      // an expert run in progress: its own slot, so neither overwrites the other
+export const EXPERT_SNAPSHOT_KEY = 'pathpatrol:v2:expert';      // expert's run in progress, in a slot of its own
 export const LEGACY_KEY = 'color-divide-records-v1';
 
 /* The difficulty curve: level n is always the same, for every player. Every knob moves a little at a time, so each level is
@@ -137,11 +137,8 @@ function kindsFor(count, level, arrivals, special) {
   return kinds.slice(0, count);
 }
 
-/* Expert mode: 15 levels on the 1.0.0 curve, compressed. Level 1 is where 1.0.0's level 6 was (3 patrols at 18.9 u/s, 2
-   obstacles, a tracer, 69 %); every knob climbs in a straight line, floored so that none ever goes down, to 1.0.0's peak on
-   level 15 (8 patrols at 30 u/s, 6 obstacles, 4 tracers, 75 %). The new kinds arrive early (never where the count rises:
-   4, 7, 10, 13, 15), level 5 is an odd board, 10 a boss and 15 the finale: a boss on an odd board. Its own boards
-   (EXPERT_SEED), three lives, no extra lives, no restarts, no stars. Measured with the bots: research/expert-curve-*. */
+/* Expert mode: the 1.0.0 curve in 15 levels, in straight lines (floored: no knob goes down) from 1.0.0's level 6 to its peak.
+   Kinds arrive early, never where the count rises; 5 is an odd board, 10 a boss, 15 both. Bots: research/expert-curve-*. */
 export const EXPERT = Object.freeze({ levels: 15 });
 const EXPERT_ARRIVALS = [['scout', 2], ['bomber', 6], ['hunter', 8]];
 const EXPERT_SPECIALS = { 5: 'shape', 10: 'boss', 15: 'finale' };
@@ -161,9 +158,9 @@ export function expertInfo(level) {
     powerups: true,
     kinds: kindsFor(patrols, e, EXPERT_ARRIVALS, special),
     special,
-    valley: e === 6 || e === 11,                   // after the odd board and the boss: an early pickup (powerups.js)
+    valley: e === 6 || e === 11,                   // after a special: an early pickup
   };
 }
 
-/* The numbers of level n in a run of this mode: expert runs have their own curve, everything else is the campaign's. */
+/* Level n's numbers in a run of this mode. */
 export const infoFor = (mode, level) => (mode === 'expert' ? expertInfo(level) : levelInfo(level));

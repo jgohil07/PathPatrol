@@ -72,7 +72,7 @@ export function takeSnapshot(game, now = Date.now()) {
     mode: run.mode, seed: run.seed, dayKey: run.dayKey || null,
     run: { lives: run.lives, score: run.score, combo: run.combo, nextLifeAt: run.nextLifeAt, stats: { ...run.stats }, best0: { ...run.best0 }, practice: !!run.practice },
   };
-  // On the win screen the level is done: come back to the next one, from its start (expert's last one ends the run: nothing to save).
+  // On the win screen the level is done: come back to the next one, from its start (after expert's last, nothing).
   if (phase === 'clear' && run.mode === 'expert' && level.number >= EXPERT.levels) return null;
   if (phase === 'clear') return { ...base, level: level.number + 1, fresh: true };
   return {
@@ -116,8 +116,8 @@ function cleanPowerups(p) {
   return { pickup, nextIn: p.nextIn, kind: p.kind, active, draws: { seq: Math.floor(p.draws.seq), pos: Math.floor(p.draws.pos) } };
 }
 
-/* A clean copy of `raw`, or null. `today` is the local date key, needed to accept a daily run. `slot` is where it was read
-   from: an expert run is accepted from the expert slot only, and nothing else is. */
+/* A clean copy of `raw`, or null. `today` is the local date key, needed to accept a daily run. `slot`: where it was read
+   (expert's slot holds expert runs only). */
 export function validateSnapshot(raw, { now = Date.now(), today = null, slot = 'run' } = {}) {
   if (!isObject(raw) || raw.v !== SNAPSHOT_VERSION) return null;
   if (typeof raw.app !== 'string' || raw.app.split('.')[0] !== APP_VERSION.split('.')[0]) return null;     // a new major version may change what a level is

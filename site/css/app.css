@@ -214,6 +214,7 @@ kbd { display: inline-block; min-width: 1.7em; margin-inline: 1px; padding: 2px 
 .cta { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 4px; }
 .cta-wide { flex: 1 1 100%; }                                  /* Resume takes a row of its own, above Start and Daily */
 .btn--daily { border-color: var(--amber); color: var(--amber); }
+.btn--expert { border-color: rgba(255, 118, 95, .7); color: var(--coral); }
 .btn--quiet { max-width: 100%; padding-block: 8px; border-color: var(--line-strong); color: var(--ink-soft); font-size: 12px; line-height: 1.4; text-wrap: balance; }      /* the text may wrap (balanced), so it needs the room of lines */
 .btn--quiet[data-mode="update"] { border-color: var(--aqua-dim); color: var(--aqua); }
 .btn--daily span[aria-hidden] { margin-right: 8px; }
@@ -228,12 +229,22 @@ kbd { display: inline-block; min-width: 1.7em; margin-inline: 1px; padding: 2px 
 .app:is([data-notice="update"], [data-notice="install"]) #settingsButton::after { content: ""; position: absolute; top: 7px; right: 7px; width: 8px; height: 8px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 0 2px var(--bg); }
 /* A short screen with a saved run, a finished daily to share, or an offer from the app has no room for the decoration: the
    symbol and the tagline go. With a saved run and one of the others, the records line goes too; and with a saved run and a
-   finished daily, the offer as well. */
+   finished daily, the offer and the daily's line as well. */
 @media (max-height: 640px) {
   .app:is([data-saved="yes"], [data-daily="done"], [data-notice="update"], [data-notice="install"], [data-notice="ios"]) .overlay--title :is(.start-symbol, .tagline) { display: none; }
   .app[data-saved="yes"]:is([data-daily="done"], [data-notice="update"], [data-notice="install"], [data-notice="ios"]) .overlay--title .records { display: none; }
   .app[data-saved="yes"][data-daily="done"] .overlay--title #appNotice { display: none; }      /* the tallest title: the same offer waits in Settings, marked by a dot on its button */
+  .app[data-saved="yes"][data-daily="done"] .overlay--title .daily-line { display: none; }
   .overlay--end .panel { gap: 8px; }                                         /* the game-over card of a daily has six rows and two buttons: tighter */
+}
+/* 320 x 568 stacks Start, Daily and Expert: no decoration, and the offer waits in Settings with a saved run or a done daily. */
+@media (max-height: 640px) and (max-width: 360px) {
+  .overlay--title :is(.start-symbol, .tagline) { display: none; }
+  .app:is([data-saved="yes"], [data-daily="done"]) .overlay--title #appNotice { display: none; }
+}
+/* 360 x 740: the tallest title drops the decoration. */
+@media (max-height: 760px) and (max-width: 400px) {
+  .app[data-saved="yes"][data-daily="done"] .overlay--title :is(.start-symbol, .tagline) { display: none; }
   .overlay--end .receipt dt, .overlay--end .receipt dd { padding: 3px 0; }
 }
 .eyebrow { color: var(--muted); font: 500 10px/1 var(--font-ui); letter-spacing: .14em; text-transform: uppercase; }
@@ -282,8 +293,9 @@ kbd { display: inline-block; min-width: 1.7em; margin-inline: 1px; padding: 2px 
 .records-list dd, .keys dd { color: var(--ink); font-weight: 500; text-align: right; }
 .how { display: grid; gap: 10px; padding-left: 20px; color: var(--ink-soft); }
 .how b { color: var(--ink); font-weight: 500; }
-.how-daily, .how-trap { color: var(--ink-soft); }
+.how-daily, .how-trap, .how-expert { color: var(--ink-soft); }
 .how-daily b, .how-trap b { color: var(--amber); font-weight: 500; }
+.how-expert b { color: var(--coral); font-weight: 500; }
 .share-text { width: 100%; padding: 10px 12px; border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--bg); color: var(--ink); font: 500 12.5px/1.5 var(--font-ui); resize: none; }
 .version-line { text-align: center; }
 

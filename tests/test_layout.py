@@ -306,8 +306,9 @@ def test_the_title_with_an_update_or_install_notice_fits_every_screen_size(open_
                 settle(page)
                 assert page.evaluate('__pp.state().phase') == 'title' and page.locator('#resumeRunButton').is_visible() == saved and page.locator('#shareTodayButton').is_visible() == done
                 assert page.evaluate("document.getElementById('appNotice').dataset.mode") == what
-                # The tallest title (a saved run and a played daily) sheds the notice on a short screen: below 640 px high, by the CSS.
-                dropped = saved and done and height <= 640
+                # The tallest title (a saved run and a played daily) sheds the notice on a short screen: below 640 px high, by the CSS;
+                # a narrow short phone (<= 360 px wide), where Start, Daily and Expert take a row each, sheds it with either.
+                dropped = height <= 640 and ((saved and done) or (width <= 360 and (saved or done)))
                 assert page.locator('#appNotice').is_visible() == (not dropped), f'[{name} {tag}] the notice should {"be dropped" if dropped else "show"}'
                 if what != 'ios':                                                    # (the iOS hint has no button in Settings, only the text: the label and the dot are for the two that do)
                     assert page.get_attribute('#settingsButton', 'aria-label') == f'Settings ({"update ready" if what == "update" else "install the app"})'

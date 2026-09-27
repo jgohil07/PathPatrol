@@ -137,8 +137,7 @@ export class Game extends Emitter {
 
   /* --- an interrupted run ------------------------------------------------------------------------ */
 
-  /* Reads the saved runs, if any: the campaign's (or the daily's) and expert's, each from its own slot. Anything stale or
-     damaged is dropped, not offered. */
+  /* Reads the saved runs (the campaign's or daily's, and expert's). Anything stale or damaged is dropped, not offered. */
   _loadSaved() {
     const load = (slot) => {
       const raw = this.storage.loadSnapshot(slot);
@@ -222,11 +221,10 @@ export class Game extends Emitter {
     this.startLevel(1);
   }
 
-  /* Expert mode: 15 levels on a steep curve (config.js expertInfo), three lives, no extra lives, no restarts, no stars, and
-     records of its own. From the title only; an expert run that was saved is picked up where it was left. It never
-     touches the campaign's saved run or records, and they never touch it. */
+  /* Expert: 15 steep levels, three lives, no extra lives, no restarts, no stars; its own records and saved run, never the
+     campaign's. From the title (resuming a saved one) or the game-over card. */
   startExpert() {
-    if (this.phase !== PHASE.TITLE) return false;
+    if (this.phase !== PHASE.TITLE && this.phase !== PHASE.OVER) return false;
     if (this.savedExpert) return this.resumeRun('expert');
     this.newRun({ mode: 'expert', seed: EXPERT_SEED });
     return true;
@@ -694,7 +692,7 @@ export class Game extends Emitter {
     else this.startLevel(this.level.number + 1);
   }
 
-  /* The tutorial asked for from the Expert button leads on into expert (the saved expert run, if there is one). */
+  /* The tutorial started from Expert leads on into it. */
   _startExpertAfterTutorial() {
     if (this.savedExpert) {                     // resumeRun works from the title: the tutorial's board goes first
       this.enterTitle();
@@ -765,7 +763,7 @@ export class Game extends Emitter {
       score: this.run ? this.run.score : 0,
       combo: this.run ? this.run.combo : 1,
       trapMult: this.run && this.run.stats ? trapMultiplier(this.run.stats.traps || 0) : 1,
-      starLine: this.run && this.run.mode === 'expert' ? null : Math.min(100, (level ? level.info.target : first.target) + STARS.overshoot),      // the three-star mark on the meter (expert has no stars)
+      starLine: this.run && this.run.mode === 'expert' ? null : Math.min(100, (level ? level.info.target : first.target) + STARS.overshoot),      // the three-star mark (none in expert)
       lifeLost: !!(level && level.lifeLost),
       trappedHere: level && this.run && level.statsAtStart ? this.run.stats.traps - (level.statsAtStart.traps || 0) : 0,
       target: level ? level.info.target : first.target,

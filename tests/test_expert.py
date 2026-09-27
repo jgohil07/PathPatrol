@@ -289,3 +289,138 @@ def test_the_tutorial_leads_on_into_expert(page):
       return { skipped, a: [a.run.mode, a.level.number, a.storage.settings.tutorialDone], moved, b: [b.run.mode, b.level.number] };""")
     assert got['skipped'] is True and got['a'] == ['expert', 1, True]
     assert got['moved'] is True and got['b'] == ['expert', 1]
+
+
+# ---- the screens ---------------------------------------------------------------------------------------------------------
+from test_layout import SIZES, MEASURE, check, settle, OUT, SET_NOTICE, DAILY_DONE          # noqa: E402  (the layout matrix's own sizes and checks)
+
+FRAMES2 = 'new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))'
+
+
+def test_the_expert_button_is_on_the_title_from_the_first_launch_and_starts_a_run(open_page):
+    page = open_page(viewport={'width': 1280, 'height': 800})
+    assert page.evaluate('__pp.storage.records.runs') == 0 and page.locator('#expertButton').is_visible()
+    assert page.locator('#expertLabel').text_content() == 'Expert'
+    assert page.get_attribute('#expertButton', 'aria-label') == 'Expert mode, 15 hard levels'
+    page.click('#expertButton')
+    assert page.evaluate('[__pp.state().phase, __pp.state().mode, __pp.state().level]') == ['playing', 'expert', 1]
+    assert page.locator('#levelLabel').text_content() == 'E01'
+    assert page.locator('#starMarker').is_hidden()                                           # no stars in expert
+    assert page.locator('#restartButton').is_disabled()                                      # and no restarts
+    page.evaluate("__pp.game.pause('manual'); 0")
+    assert page.locator('#pauseRestartButton').is_hidden()
+
+
+def test_the_first_expert_press_on_a_new_device_runs_the_tutorial_first(open_page):
+    page = open_page(viewport={'width': 1280, 'height': 800}, tutorial=True)
+    page.click('#expertButton')
+    assert page.evaluate('[__pp.state().phase, __pp.state().mode]') == ['playing', 'tutorial']
+    page.evaluate('__pp.game.skipTutorial(); 0')
+    assert page.evaluate('[__pp.state().mode, __pp.state().level]') == ['expert', 1]
+
+
+def test_a_saved_expert_run_is_offered_on_the_expert_button_and_resumed_from_it(open_page):
+    page = open_page(viewport={'width': 1280, 'height': 800})
+    page.evaluate('__pp.game.startExpert(); __pp.game.startLevel(7); __pp.game.persist(); __pp.game.enterTitle(); 0')
+    assert page.locator('#expertLabel').text_content() == 'Resume expert · 07'
+    assert page.get_attribute('#expertButton', 'aria-label') == 'Resume expert run, level 7 of 15'
+    assert page.locator('#resumeRunButton').is_hidden()                                     # the campaign's Resume is for the campaign's run only
+    page.click('#expertButton')
+    page.evaluate('__pp.game.resume(); 0')
+    assert page.evaluate('[__pp.state().mode, __pp.state().level]') == ['expert', 7]
+
+
+def test_the_expert_tally_has_no_stars_and_the_last_level_finishes(open_page):
+    page = open_page(viewport={'width': 1280, 'height': 800})
+    page.evaluate('__pp.game.startExpert(); __pp.freeze(true); 0')
+    page.evaluate(FRAMES2)
+    page.evaluate('__pp.forceWin(); 0')
+    assert page.evaluate('__pp.state().phase') == 'clear'
+    assert page.locator('#clearEyebrow').text_content() == 'Expert 01/15 cleared' and page.locator('#clearStars').is_hidden()
+    assert page.locator('#nextLabel').text_content() == 'Next level'
+    page.evaluate('__pp.game.startLevel(15); __pp.freeze(true); 0')
+    page.evaluate(FRAMES2)
+    page.evaluate('__pp.forceWin(); 0')
+    assert page.locator('#nextLabel').text_content() == 'Finish'
+    page.evaluate("window.__sounds = []; __pp.sound.clear = () => __sounds.push('win'); __pp.sound.over = () => __sounds.push('lose'); __pp.step(90); 0")
+    page.keyboard.press('Enter')
+    assert page.evaluate('__pp.state().phase') == 'over'
+    assert page.evaluate('__sounds') == ['win']                                              # a finish sounds like a win, not a game over
+    assert page.locator('#endEyebrow').text_content() == 'Expert · all 15 cleared'
+    assert page.locator('#endTitle').text_content() == 'Expert cleared.'
+    assert page.locator('#againLabel').text_content() == 'New expert run' and page.locator('#shareButton').is_hidden()
+    rows = page.evaluate("[...document.querySelectorAll('#receipt dt')].map((d) => d.textContent)")
+    assert rows == ['Score', 'Levels cleared', 'Best level cleared', 'Captures', 'Close calls']
+    assert page.locator('#endSummary').text_content() == 'Finished 1 time. Few ever do.'
+    page.evaluate('document.activeElement.blur(); 0')
+    page.keyboard.press('Enter')                                                             # nothing focused, the obvious next step: another expert run
+    assert page.evaluate('[__pp.state().phase, __pp.state().mode, __pp.state().level]') == ['playing', 'expert', 1]
+    page.evaluate('__pp.freeze(true); __pp.game.newRun(); __pp.freeze(true); __pp.game.loseLife(); __pp.game.loseLife(); __pp.game.loseLife(); 0')
+    assert page.locator('#endTitle').text_content() == 'Run interrupted.' and page.locator('#endEyebrow').text_content() == 'No lives left'     # a campaign card after the finish card
+
+
+def test_an_expert_game_over_card_and_new_expert_run(open_page):
+    page = open_page(viewport={'width': 1280, 'height': 800})
+    page.evaluate("window.__sounds = []; __pp.sound.clear = () => __sounds.push('win'); __pp.sound.over = () => __sounds.push('lose'); 0")
+    page.evaluate('__pp.game.startExpert(); __pp.freeze(true); __pp.game.loseLife(); __pp.game.loseLife(); __pp.game.loseLife(); 0')
+    assert page.evaluate('__pp.state().phase') == 'over' and page.evaluate('__sounds') == ['lose']
+    assert page.locator('#endEyebrow').text_content() == 'Expert · no lives left' and page.locator('#endTitle').text_content() == 'Run interrupted.'
+    assert page.evaluate("[...document.querySelectorAll('#receipt dt')].map((d) => d.textContent)")[1] == 'Level reached'
+    page.click('#againButton')
+    assert page.evaluate('[__pp.state().phase, __pp.state().mode, __pp.state().level]') == ['playing', 'expert', 1]
+    page.evaluate('__pp.freeze(true); __pp.game.loseLife(); __pp.game.loseLife(); __pp.game.loseLife(); __pp.game.newRun(); __pp.freeze(true); __pp.game.loseLife(); __pp.game.loseLife(); __pp.game.loseLife(); 0')
+    assert page.locator('#endTitle').text_content() == 'Run interrupted.' and page.locator('#againLabel').text_content() == 'New run'      # a campaign card after an expert one
+    assert page.locator('#endEyebrow').text_content() == 'No lives left'
+
+
+def test_the_expert_records_show_in_stats_and_on_the_title(open_page):
+    page = open_page(viewport={'width': 1280, 'height': 800})
+    assert page.locator('#expertRecord').text_content() == '—'
+    page.evaluate("__pp.storage.updateRecords((r) => { r.expert = { best: 9, bestScore: 123456, finished: 0, runs: 4 }; }); __pp.ui.renderStats(); 0")
+    assert page.locator('#expertRecord').text_content() == 'level 09/15 · best 123,456'
+    assert page.locator('#titleRecords').text_content() == '> expert 09/15'                # no campaign run yet: only expert's
+    page.evaluate("__pp.storage.updateRecords((r) => { r.expert.finished = 2; r.runs = 3; r.bestScore = 5000; }); __pp.ui.renderStats(); 0")
+    assert page.locator('#expertRecord').text_content() == 'level 09/15 · best 123,456 · finished 2×'
+    assert page.locator('#titleRecords').text_content() == '> best 5,000 · expert 09/15 · 3 runs'
+
+
+def test_help_explains_expert(open_page):
+    page = open_page(viewport={'width': 1280, 'height': 800})
+    text = page.locator('.how-expert').text_content()
+    assert 'three lives, no extra lives, no restarts' in text and 'fifteenth' in text
+
+
+@pytest.mark.parametrize('size', SIZES, ids=[s[0] for s in SIZES])
+def test_the_tallest_title_with_expert_fits_every_screen_size(open_page, engine, size):
+    """A plain title (records, nothing saved, the daily open) and the tallest title there is (a campaign run and an expert run
+    saved, today's daily played, an update on offer). The Expert button is one more row on a narrow phone; the short-screen
+    rules make the room."""
+    name, width, height, mode, dpr = size
+    touch = mode == 'touch'
+    page = open_page(viewport={'width': width, 'height': height}, dpr=dpr, has_touch=touch, is_mobile=touch)
+    OUT.mkdir(parents=True, exist_ok=True)
+    page.evaluate("__pp.storage.updateRecords((r) => { r.runs = 12; r.bestScore = 1234567; r.bestClear = 61.5; r.bestLevel = 11; r.stars['1'] = 3; r.expert = { best: 11, bestScore: 987654, finished: 1, runs: 6 }; }); __pp.ui.renderStats(); 0")
+    settle(page)
+    assert page.evaluate('__pp.state().phase') == 'title' and page.locator('#expertButton').is_visible() and page.locator('#resumeRunButton').is_hidden()
+    check(page.evaluate(MEASURE), touch, f'{name} plain title with expert')
+    page.screenshot(path=str(OUT / f'{engine}-{name}-19-title-expert-plain.png'))
+    page.evaluate('__pp.game.startExpert(); __pp.game.startLevel(12); __pp.game.run.score = 987654; __pp.game.run.nextLifeAt = 1000000; __pp.game.persist(); __pp.game.enterTitle(); 0')
+    page.evaluate('__pp.game.newRun({ seed: "saved" }); __pp.setPatrols([{ x: 100, y: 60 }]); __pp.cutLine("v", 40); __pp.game.run.score = 1234567; __pp.game.run.nextLifeAt = 1250000; __pp.game.persist(); __pp.game.enterTitle(); 0')
+    page.reload()
+    page.wait_for_function('window.__pp !== undefined')
+    page.wait_for_function('__pp.state().frames > 3')
+    page.evaluate(DAILY_DONE)
+    page.evaluate("__pp.storage.updateRecords((r) => { r.expert = { best: 11, bestScore: 987654, finished: 1, runs: 6 }; }); __pp.ui.renderStats(); 0")
+    page.evaluate(SET_NOTICE, 'update')
+    settle(page)
+    assert page.evaluate('__pp.state().phase') == 'title'
+    assert page.locator('#resumeRunButton').is_visible() and page.locator('#shareTodayButton').is_visible() and page.locator('#expertButton').is_visible()
+    assert page.locator('#expertLabel').text_content() == 'Resume expert · 12'
+    check(page.evaluate(MEASURE), touch, f'{name} tallest title with expert')
+    page.screenshot(path=str(OUT / f'{engine}-{name}-20-title-expert-tallest.png'))
+    # and the expert end card, which has its own rows
+    page.evaluate("__pp.game.startExpert(); __pp.game.tick(5); __pp.freeze(true); __pp.game.loseLife(); __pp.game.loseLife(); __pp.game.loseLife(); 0")      # (the saved run resumes with a 3-2-1)
+    settle(page)
+    assert page.evaluate('[__pp.state().phase, __pp.state().mode]') == ['over', 'expert']
+    check(page.evaluate(MEASURE), touch, f'{name} expert game over')
+    page.screenshot(path=str(OUT / f'{engine}-{name}-21-over-expert.png'))

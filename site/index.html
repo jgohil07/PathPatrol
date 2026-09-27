@@ -49,6 +49,7 @@
       <symbol id="i-restart" viewBox="0 0 24 24"><path d="M4.6 12a7.4 7.4 0 1 0 2.3-5.4" /><path d="M4.4 4.2v4.4h4.4" /></symbol>
       <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" /></symbol>
       <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13.5 6.5L19 12l-5.5 5.5" /></symbol>
+      <symbol id="i-expert" viewBox="0 0 24 24"><path d="M6 12.5l6-5 6 5M6 18l6-5 6 5" /></symbol>
       <symbol id="i-star" viewBox="0 0 24 24"><path d="M12 3.6l2.5 5.3 5.8.7-4.3 4 1.1 5.7L12 16.5l-5.1 2.8 1.1-5.7-4.3-4 5.8-.7z" /></symbol>
     </svg>
 
@@ -116,6 +117,7 @@
                 <button type="button" class="btn btn--primary btn--big cta-wide" id="resumeRunButton" hidden><svg class="icon" aria-hidden="true"><use href="#i-play" /></svg>Resume run</button>
                 <button type="button" class="btn btn--primary btn--big" id="startButton"><svg class="icon" aria-hidden="true"><use href="#i-play" /></svg>Start run</button>
                 <button type="button" class="btn btn--big btn--daily" id="dailyButton"><span aria-hidden="true">&#9670;</span><span id="dailyLabel">Daily</span></button>
+                <button type="button" class="btn btn--big btn--expert" id="expertButton"><svg class="icon" aria-hidden="true"><use href="#i-expert" /></svg><span id="expertLabel">Expert</span></button>
               </div>
               <p class="saved" id="savedLine" hidden></p>
               <p class="daily-line" id="dailyLine"></p>
@@ -152,7 +154,7 @@
           <div class="overlay overlay--end" id="endOverlay">
             <div class="panel">
               <span class="eyebrow" id="endEyebrow">No lives left</span>
-              <h2 class="big">Run interrupted.</h2>
+              <h2 class="big" id="endTitle">Run interrupted.</h2>
               <dl class="receipt" id="receipt"></dl>
               <p class="fine" id="endSummary"></p>
               <div class="cta">
@@ -228,6 +230,7 @@
           <div><dt>Runs played</dt><dd id="runsPlayed">0</dd></div>
           <div><dt>Levels won</dt><dd id="levelsWon">0</dd></div>
           <div><dt>Daily streak</dt><dd id="dailyStreak">0 days</dd></div>
+          <div><dt>Expert</dt><dd id="expertRecord">—</dd></div>
         </dl>
         <button class="btn btn--danger" id="resetStatsButton" type="button">Reset local records</button>
         <p class="fine version-line">Path Patrol <span id="versionLine">v1.1.0</span></p>
@@ -259,6 +262,7 @@
           <li><b>Don't get caught.</b> If a patrol touches a route you are still drawing, you lose a life. Lifting mid-field cancels it for free.</li>
         </ol>
         <p class="how-trap"><b>Trap them.</b> Shut a patrol into a pocket of 4% or less and it is grounded: bonus points, and a multiplier that lasts the run. Later levels bring scouts (fast), bombers (big) and hunters, which wind up, then chase a slow pen. Every fifth level is special: an odd-shaped board, or a boss you win at once by trapping it in 12% or less.</p>
+        <p class="how-expert"><b>Expert.</b> Fifteen hard levels on boards of their own, from three patrols to eight: three lives, no extra lives, no restarts, no stars. Clear the fifteenth to finish. Its records and its saved run are kept apart from the rest.</p>
         <p class="how-daily"><b>Daily.</b> One board a day, the same for everyone: three lives, no restarts. Only your first run of the day counts; after that it is practice. Share your result when it ends.</p>
         <button class="btn" id="tutorialButton" type="button"><svg class="icon" aria-hidden="true"><use href="#i-play" /></svg>Play the tutorial</button>
         <h3 class="dialog-sub">Keys</h3>

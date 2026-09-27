@@ -3,7 +3,7 @@
 
    Screen-reader output goes through announce(): messages raised in the same tick are joined into one
    sentence, because a polite live region rewritten twice in a row reads only the last write. */
-import { START_LIVES, APP_VERSION, STARS, levelInfo } from './config.js';
+import { START_LIVES, APP_VERSION, STARS, EXPERT, levelInfo } from './config.js';
 import { PHASE } from './game.js';
 import { lastInput } from './input.js';
 import { GLYPHS, POWER_NAMES } from './glyphs.js';
@@ -19,6 +19,7 @@ const IDS = [
   'clearOverlay', 'clearEyebrow', 'clearTotal', 'tally', 'nextLabel', 'clearNote', 'tutorialButton', 'bestScore',
   'titleRecords', 'versionLabel', 'versionLine', 'pauseEyebrow', 'pauseTitle', 'receipt', 'endSummary',
   'crashDetail', 'fpsMeter', 'storageNote', 'announcer',
+  'expertButton', 'expertLabel', 'expertRecord', 'endTitle',
   'appNotice', 'appRow', 'appButton', 'appStatus', 'dailyButton', 'dailyLabel', 'dailyLine', 'shareTodayButton', 'endEyebrow', 'shareButton', 'shareDialog', 'shareText', 'copyShareButton', 'dailyStreak',
   'gameCanvas', 'powers', 'settingsDialog', 'helpDialog', 'soundSwitch', 'hapticsSwitch', 'hapticsRow', 'flightButton', 'driveButton', 'fpsSwitch',
   'bestClear', 'bestLevel', 'runsPlayed', 'levelsWon', 'resetStatsButton',
@@ -107,9 +108,10 @@ export class UI {
     const click = (node, handler) => node.addEventListener('click', handler);
     click(el.startButton, () => this.startRun());
     click(el.resumeRunButton, () => game.resumeRun());
-    click(el.againButton, () => (game.report && game.report.mode === 'select' ? game.finishSelect() : this.startRun()));      // a replay's card goes back to the levels
+    click(el.againButton, () => this.again());
     click(el.levelsButton, () => this.openLevels());
     click(el.dailyButton, () => this.startDaily());
+    click(el.expertButton, () => this.startExpert());
     click(el.appNotice, () => this.appAction());
     click(el.appButton, () => this.appAction());
     click(el.shareButton, () => this.shareResult());
@@ -235,6 +237,20 @@ export class UI {
     else this.game.startTutorial({ origin: 'daily' });
   }
 
+  /* Expert: its saved run if there is one, else a new one; a player who has never had the tutorial gets it first. */
+  startExpert() {
+    if (this.storage.settings.tutorialDone || this.game.savedExpert) this.game.startExpert();
+    else this.game.startTutorial({ origin: 'expert' });
+  }
+
+  /* The game-over card's main button: the same kind of run again (a replay goes back to the level list). */
+  again() {
+    const mode = this.game.report && this.game.report.mode;
+    if (mode === 'select') this.game.finishSelect();
+    else if (mode === 'expert') this.startExpert();
+    else this.startRun();
+  }
+
   /* The tutorial's coach holds the console line (the one place that never covers the board) until it ends. */
   renderCoach(event) {
     const { el } = this;
@@ -250,8 +266,10 @@ export class UI {
   confirm() {
     switch (this.game.phase) {
       case PHASE.TITLE:
-      case PHASE.OVER:
         this.startRun();
+        return true;
+      case PHASE.OVER:
+        this.again();
         return true;
       case PHASE.PAUSED:
       case PHASE.COUNTDOWN:
@@ -372,12 +390,13 @@ export class UI {
   renderHud() {
     const { el, game } = this;
     const h = game.hud();
-    el.levelLabel.textContent = h.mode === 'extra' ? '00' : pad2(h.level);
+    el.levelLabel.textContent = h.mode === 'extra' ? '00' : h.mode === 'expert' ? `E${pad2(h.level)}` : pad2(h.level);
     el.targetLabel.textContent = `${h.target}%`;
     el.areaLabel.textContent = `${h.cleared.toFixed(1)}%`;
     el.progressFill.style.width = `${Math.min(100, h.cleared)}%`;
     el.targetMarker.style.left = `${h.target}%`;
-    el.starMarker.style.left = `${h.starLine}%`;
+    el.starMarker.hidden = h.starLine === null;                   // expert has no stars
+    if (h.starLine !== null) el.starMarker.style.left = `${h.starLine}%`;
     el.starMarker.classList.toggle('lost', h.lifeLost);
     el.starMarker.classList.toggle('got', !h.lifeLost && h.trappedHere > 0);
     const word = this.storage.settings.theme === 'flight' ? 'PLANE' : 'CAR';
@@ -412,10 +431,12 @@ export class UI {
     el.storageNote.textContent = storage.persistent ? 'All progress stays on this device.' : "Storage is blocked here, so progress won't be saved.";
     const daily = r.daily;
     el.dailyStreak.textContent = `${streakNow(daily, this.game.today())} ${plural(streakNow(daily, this.game.today()), 'day', 'days')} (best ${daily.best})`;
+    const ex = r.expert;
+    el.expertRecord.textContent = ex.runs ? `level ${pad2(ex.best)}/${EXPERT.levels} · best ${number(ex.bestScore)}${ex.finished ? ` · finished ${ex.finished}×` : ''}` : '—';
     this.renderDaily();
     this.renderLevelsButton();
     if (!storage.persistent) el.titleRecords.textContent = "Storage is blocked here, so records won't be saved.";
-    else if (!r.runs) el.titleRecords.textContent = '> no runs yet';
+    else if (!r.runs && !r.expert.runs) el.titleRecords.textContent = '> no runs yet';
     else {
       const parts = [];
       if (r.bestScore) parts.push(`best ${number(r.bestScore)}`);
@@ -423,7 +444,8 @@ export class UI {
       if (r.bestLevel) parts.push(`top level ${pad2(r.bestLevel)}`);
       const stars = this.totalStars();
       if (stars) parts.push(`★ ${stars}`);
-      parts.push(`${r.runs} ${plural(r.runs, 'run', 'runs')}`);
+      if (r.expert.runs) parts.push(`expert ${pad2(r.expert.best)}/${EXPERT.levels}`);
+      if (r.runs) parts.push(`${r.runs} ${plural(r.runs, 'run', 'runs')}`);
       el.titleRecords.textContent = `> ${parts.join(' · ')}`;
     }
   }
@@ -578,6 +600,9 @@ export class UI {
   /* An interrupted run on offer: the Resume button leads, Start run steps back to a plain button. */
   renderSaved() {
     const { el, game } = this;
+    const expert = game.savedExpert;                       // the Expert button offers its own saved run
+    el.expertLabel.textContent = expert ? `Resume expert · ${pad2(expert.level)}` : 'Expert';
+    el.expertButton.setAttribute('aria-label', expert ? `Resume expert run, level ${expert.level} of ${EXPERT.levels}` : `Expert mode, ${EXPERT.levels} hard levels`);
     const snap = game.saved;
     el.app.dataset.saved = snap ? 'yes' : 'no';
     el.resumeRunButton.hidden = !snap;
@@ -638,7 +663,7 @@ export class UI {
     const phase = game.phase;
     const paused = phase === PHASE.PAUSED || phase === PHASE.COUNTDOWN;
     const extra = !!game.run && game.run.mode === 'extra';
-    const daily = !!game.run && (game.run.mode === 'daily' || game.run.mode === 'tutorial' || extra);       // none of them can be restarted
+    const daily = !!game.run && (game.run.mode === 'daily' || game.run.mode === 'tutorial' || game.run.mode === 'expert' || extra);       // none of them can be restarted
     el.app.dataset.phase = phase;
     document.documentElement.toggleAttribute('data-extra', extra);
     el.leaveButton.hidden = !extra;
@@ -689,8 +714,10 @@ export class UI {
       ['Close calls', String(report.stats.closeCalls)],
     ];
     const replay = report.mode === 'select';
+    el.endTitle.textContent = 'Run interrupted.';
     el.endEyebrow.textContent = replay ? 'Replay · no lives left' : !daily ? 'No lives left' : daily.practice ? 'Practice · no lives left' : `Daily #${daily.number} · no lives left`;
     el.againLabel.textContent = replay ? 'Back to levels' : 'New run';
+    if (report.mode === 'expert') { this.renderExpertOver(report); return; }
     if (daily) receiptRows.unshift(['Daily', `#${daily.number}`, daily.practice ? 'PRACTICE' : '']);
     el.endSummary.textContent = replay ? 'A replay sets no records. Pick it again, or another level.' : !daily ? (best.score ? 'A new high score. Go again?' : 'Start fresh and find a cleaner line.')
       : daily.practice ? "Practice runs don't count towards your streak or your shared result."
@@ -700,6 +727,28 @@ export class UI {
     fillRows(el.receipt, receiptRows);
     if (!el.shareButton.hidden && !this.isModalOpen()) el.shareButton.focus({ preventScroll: true });       // the phase change ran first, when the card still said "no share"
     this.announce(`Run over. ${number(report.score)} points, level ${report.level}${best.score ? ', a new best score' : ''}${daily && !daily.practice ? '. Your daily result is ready to share' : ''}`);
+  }
+
+  /* Expert's end card: out of lives, or all fifteen cleared. */
+  renderExpertOver(report) {
+    const { el } = this;
+    const best = report.newBest, ex = report.expert, of = EXPERT.levels;
+    el.endEyebrow.textContent = report.finished ? `Expert · all ${of} cleared` : 'Expert · no lives left';
+    el.endTitle.textContent = report.finished ? 'Expert cleared.' : 'Run interrupted.';
+    el.againLabel.textContent = 'New expert run';
+    fillRows(el.receipt, [
+      ['Score', number(report.score), best.score ? 'NEW BEST' : ''],
+      [report.finished ? 'Levels cleared' : 'Level reached', `${pad2(report.level)}/${of}`, best.level ? 'NEW BEST' : ''],
+      ['Best level cleared', `${pad2(ex.best)}/${of}`],
+      ['Captures', String(report.stats.captures)],
+      ['Close calls', String(report.stats.closeCalls)],
+    ]);
+    el.endSummary.textContent = report.finished ? `Finished ${ex.finished} ${plural(ex.finished, 'time', 'times')}. Few ever do.`
+      : best.score ? 'A new expert high score. Go again?' : `Three lives for ${of} levels. Find a cleaner line.`;
+    el.shareButton.hidden = true;
+    el.againButton.classList.add('btn--primary');
+    this.announce(report.finished ? `Expert cleared, all ${of} levels. ${number(report.score)} points${best.score ? ', a new best score' : ''}`
+      : `Expert run over. ${number(report.score)} points, level ${report.level} of ${of}${best.score ? ', a new best score' : ''}`);
   }
 
   /* The win screen: what the level's captures scored, then each bonus. */
@@ -735,17 +784,18 @@ export class UI {
       this.announce(`Tutorial complete. You claimed ${Math.round(t.cleared)} percent`);
       return;
     }
-    el.clearEyebrow.textContent = `Level ${pad2(t.level)} cleared`;
+    el.clearEyebrow.textContent = t.expert ? `Expert ${pad2(t.level)}/${EXPERT.levels} cleared` : `Level ${pad2(t.level)} cleared`;
     el.clearTotal.textContent = `+${number(t.total)}`;
-    el.nextLabel.textContent = t.select ? 'Back to levels' : 'Next level';
-    this.renderStars(t.stars);
+    el.nextLabel.textContent = t.select ? 'Back to levels' : t.last ? 'Finish' : 'Next level';
+    if (t.stars !== null) this.renderStars(t.stars);                // (expert has none)
     fillRows(el.tally, [
       ['Captures', `+${number(t.capturePoints)}`],
       [`Overshoot ${t.overshoot.toFixed(1)}%`, `+${number(t.overshootBonus)}`],
       [`Lives x${t.lives}`, `+${number(t.livesBonus)}`],
       [`Time ${Math.round(t.seconds)} s`, `+${number(t.timeBonus)}`],
     ]);
-    this.announce(`Level ${t.level} cleared. ${number(t.total)} points. ${t.stars} of 3 stars${t.newStars ? ', a new best' : ''}`);
+    this.announce(t.stars === null ? `Expert level ${t.level} of ${EXPERT.levels} cleared. ${number(t.total)} points`
+      : `Level ${t.level} cleared. ${number(t.total)} points. ${t.stars} of 3 stars${t.newStars ? ', a new best' : ''}`);
   }
 
   /* The details are for developers (?debug=1); a player only sees "Something broke". WebKit's stack
