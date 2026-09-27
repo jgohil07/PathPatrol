@@ -24,6 +24,10 @@ at once by trapping it in 12% or less.
 trap. Once you have won a level, **Levels** (on the title) lets you replay any level you have reached for its stars, without
 touching your best score or your saved run.
 
+**Expert** — Fifteen hard levels on boards of their own, on the steep curve of the first release squeezed into 15: from three
+patrols to eight at full speed, every patrol kind, an odd board, a boss, and a boss on an odd board to finish. Three lives, no
+extra lives, no restarts, no stars. Open from the start, with its own records and its own saved run.
+
 **Come back to it** — Your run is saved as you play and offered as *Resume run*. Records (best score, best clear, levels won,
 your daily streak) stay in your browser. Installable, and playable offline after the first visit.
 

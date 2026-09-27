@@ -258,7 +258,7 @@ def test_the_worker_takes_the_page_over_without_restarting_it_and_caches_the_who
       const bad = []; for (const r of await cache.keys()) { const hit = await cache.match(r); if (!hit.ok) bad.push(r.url); }
       return { names, keys, bad, mark: window.__mark, offline: __pp.pwa.offline, scope: (await navigator.serviceWorker.getRegistration()).scope }; }""")
     shell = shell_list()
-    assert len(got['names']) == 1 and re.fullmatch(r'pathpatrol-1\.1\.0-[0-9a-f]{10}', got['names'][0])
+    assert len(got['names']) == 1 and re.fullmatch(r'pathpatrol-1\.2\.0-[0-9a-f]{10}', got['names'][0])
     assert len(got['keys']) == len(shell) and '/' in got['keys'] and '/index.html' in got['keys'] and '/js/main.js' in got['keys']
     assert got['bad'] == [] and got['mark'] == 1                                        # every file cached whole; and the page was not reloaded when the worker claimed it
     assert got['offline'] == 'ready' and got['scope'].endswith('/')
@@ -290,7 +290,7 @@ def test_the_game_loads_and_plays_with_the_network_gone(release_site, open_page)
     page.wait_for_function(f'__pp.state().frames > {frames + 5}')                           # it is drawing, from cache
     page.evaluate('__pp.setPatrols([{ x: 100, y: 60 }]); __pp.game.route.begin(30, 1); __pp.game.route.move(30, 71)')       # (the one patrol is placed far from the line, so it cannot spoil it)
     assert page.evaluate('__pp.state().cleared') > 5                                       # and playing: a route drawn across claims ground
-    assert page.locator('#versionLabel').text_content() == 'v1.1.0'
+    assert page.locator('#versionLabel').text_content() == 'v1.2.0'
     origin = page.evaluate('location.origin')
     for path in ('/index.html', '/?x=1', '/?debug=1&sw=1'):                                # the app's own addresses, with or without a query
         response = page.goto(origin + path)
@@ -373,7 +373,7 @@ def forgive_reload(page):
     page.problems[:] = [p for p in page.problems if 'ERR_ABORTED' not in p and not (p.startswith('requestfailed:') and '?debug=1' in p)]
 
 
-def new_version_waiting(page, release_site, version='1.1.1'):
+def new_version_waiting(page, release_site, version='1.2.1'):
     """Release `version` and wait until this page has been told it is installed and waiting."""
     release_site.publish(version)
     page.evaluate('__pp.pwa.registration.update().then(() => 0)')
@@ -408,7 +408,7 @@ def test_a_change_to_the_files_alone_is_a_new_version_kept_apart_from_the_runnin
     names = page.evaluate('caches.keys()')
     assert len(names) == 2 and old_name in names
     new_name = [n for n in names if n != old_name][0]
-    assert new_name.startswith('pathpatrol-1.1.0-')                                         # the same version number, other contents
+    assert new_name.startswith('pathpatrol-1.2.0-')                                         # the same version number, other contents
     css_in = lambda name: page.evaluate("(name) => caches.open(name).then((c) => c.match('css/app.css')).then((r) => r.text())", name)      # noqa: E731
     assert 'a tweak' not in css_in(old_name) and 'a tweak' in css_in(new_name)
 
@@ -426,19 +426,19 @@ def test_a_first_visit_says_it_is_saving_an_offline_copy_until_it_has_one(releas
 def test_a_new_version_waits_until_asked_then_takes_over_and_the_old_files_are_removed(release_site, open_page):
     page = open_page(release_site.url + '/?debug=1&sw=1')
     controlled(page)
-    assert page.locator('#versionLabel').text_content() == 'v1.1.0'
+    assert page.locator('#versionLabel').text_content() == 'v1.2.0'
     first = page.evaluate('caches.keys()')
-    assert len(first) == 1 and first[0].startswith('pathpatrol-1.1.0-')
+    assert len(first) == 1 and first[0].startswith('pathpatrol-1.2.0-')
     new_version_waiting(page, release_site)
     assert page.locator('#appNotice').is_visible() and page.locator('#appNotice').text_content() == 'Update ready · tap to restart'
-    assert page.locator('#versionLabel').text_content() == 'v1.1.0'                       # it has installed, and is waiting: this page still runs the old one
+    assert page.locator('#versionLabel').text_content() == 'v1.2.0'                       # it has installed, and is waiting: this page still runs the old one
     assert len(page.evaluate('caches.keys()')) == 2                                         # the new files are all there, beside the old ones
     assert 'Update ready' in page.locator('#announcer').text_content()
     page.click('#appNotice')
-    running_version(page, '1.1.1')
+    running_version(page, '1.2.1')
     page.wait_for_function('__pp.state().frames > 2')
     names = page.evaluate('caches.keys()')
-    assert len(names) == 1 and names[0].startswith('pathpatrol-1.1.1-')                    # the old version's files were deleted
+    assert len(names) == 1 and names[0].startswith('pathpatrol-1.2.1-')                    # the old version's files were deleted
     assert page.evaluate("performance.getEntriesByType('navigation')[0].type") == 'reload'
     assert page.evaluate('__pp.pwa.update') is False and page.locator('#appNotice').is_hidden()
     forgive_reload(page)
@@ -452,9 +452,9 @@ def test_an_update_leaves_other_caches_on_the_same_origin_alone(release_site, op
     page.evaluate("caches.open('other-project-v3').then((c) => c.put('/x', new Response('kept'))).then(() => 0)")
     new_version_waiting(page, release_site)
     page.click('#appNotice')
-    running_version(page, '1.1.1')
+    running_version(page, '1.2.1')
     names = sorted(page.evaluate('caches.keys()'))
-    assert len(names) == 2 and names[0] == 'other-project-v3' and names[1].startswith('pathpatrol-1.1.1-')
+    assert len(names) == 2 and names[0] == 'other-project-v3' and names[1].startswith('pathpatrol-1.2.1-')
     assert page.evaluate("caches.open('other-project-v3').then((c) => c.match('/x')).then((r) => r.text())") == 'kept'
     forgive_reload(page)
 
@@ -481,7 +481,7 @@ def test_a_takeover_this_page_did_not_ask_for_never_restarts_a_run_and_waits_for
     page.evaluate('__pp.pwa.applyUpdate(); 0')                                          # nothing is waiting any more, so tapping Restart now does nothing at all
     assert page.evaluate('window.__stillHere') == 1
     page.evaluate('__pp.game.enterTitle(); 0')                                              # back on the title: now it may restart
-    running_version(page, '1.1.1')
+    running_version(page, '1.2.1')
     forgive_reload(page)
 
 
@@ -501,7 +501,7 @@ def test_a_launch_that_finds_an_update_waiting_takes_it_from_the_title_and_never
     assert page.evaluate("JSON.parse(sessionStorage.getItem('__posted') || '[]')") == []
     assert page.evaluate('__pp.pwa._applying') is False and page.evaluate('__pp.pwa.update') is True
     page.evaluate('__pp.game.enterTitle(); __pp.pwa._register(); 0')                       # ... and now on the title
-    running_version(page, '1.1.1')
+    running_version(page, '1.2.1')
     assert page.evaluate("JSON.parse(sessionStorage.getItem('__posted') || '[]')") == ['SKIP_WAITING']
     forgive_reload(page)
 
@@ -515,7 +515,7 @@ def test_taking_an_update_from_settings_mid_run_saves_the_run_and_offers_it_afte
     new_version_waiting(page, release_site)
     page.click('#settingsButton')
     page.click('#appButton')
-    running_version(page, '1.1.1')
+    running_version(page, '1.2.1')
     page.wait_for_function('__pp.state().frames > 2')
     assert page.evaluate("document.getElementById('app').dataset.phase") == 'title' and page.locator('#resumeRunButton').is_visible()
     page.click('#resumeRunButton')
@@ -538,7 +538,7 @@ def test_a_page_opened_while_a_new_version_is_still_installing_hears_when_it_is_
     page = open_page(release_site.url + '/?debug=1&sw=1')
     controlled(page)
     gate = release_site.hold('/js/game.js')                                                   # the new version cannot finish installing yet
-    release_site.publish('1.1.1')
+    release_site.publish('1.2.1')
     page.evaluate('__pp.pwa.registration.update().then(() => 0)')
     wait_for(page, 'navigator.serviceWorker.getRegistration().then((r) => !!r.installing)')
     tab = second_tab(page)
@@ -648,14 +648,14 @@ def test_a_page_that_is_the_first_to_see_a_new_version_does_not_restart_itself_o
 def test_a_worker_that_cannot_install_leaves_the_running_version_alone(release_site, open_page):
     page = open_page(release_site.url + '/?debug=1&sw=1')
     controlled(page)
-    release_site.publish('1.1.1')
+    release_site.publish('1.2.1')
     (release_site.directory / 'css' / 'app.css').unlink()                                    # the new version's list names a file that is gone
     page.evaluate('__pp.pwa.registration.update().catch(() => 0).then(() => 0)')
     time.sleep(2.0)
-    assert page.evaluate('__pp.pwa.update') is False and page.locator('#versionLabel').text_content() == 'v1.1.0'
+    assert page.evaluate('__pp.pwa.update') is False and page.locator('#versionLabel').text_content() == 'v1.2.0'
     assert page.evaluate('navigator.serviceWorker.controller.state') == 'activated'
     names = page.evaluate('caches.keys()')
-    assert any(n.startswith('pathpatrol-1.1.0-') for n in names)                          # the old cache is untouched
+    assert any(n.startswith('pathpatrol-1.2.0-') for n in names)                          # the old cache is untouched
     page.problems[:] = [p for p in page.problems if 'app.css' not in p and '404' not in p]
 
 

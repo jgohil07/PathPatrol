@@ -1,6 +1,6 @@
 /* Constants and tuning knobs. Anything a designer might want to adjust lives here. */
 
-export const APP_VERSION = '1.1.0';
+export const APP_VERSION = '1.2.0';
 
 /* The board is 120 x 72 world units. Physics and drawing work in units; the cell grid that stores
    claimed territory is CELLS_PER_UNIT times finer, which keeps freehand edges smooth. */
