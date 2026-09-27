@@ -260,6 +260,7 @@ def test_the_hud_shows_score_and_combo_and_the_board_never_moves_as_they_grow(op
 def test_the_win_screen_shows_the_tally_and_moves_on_by_tap_key_or_time(open_page):
     page = open_page(viewport={'width': 1280, 'height': 800})
     page.evaluate('__pp.game.newRun({ seed: "win" }); __pp.freeze(true); __pp.forceWin()')
+    page.evaluate('new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))')    # (a scripted start leaves focus on the hidden Start button until a frame has passed: Enter would press it; seen on CI's WebKit, 2026-09-27)
     assert page.evaluate('__pp.state().phase') == 'clear' and page.locator('#clearOverlay').is_visible()
     assert page.locator('#clearEyebrow').text_content() == 'Level 01 cleared'
     assert page.locator('#clearTotal').text_content() == '+17,582'
