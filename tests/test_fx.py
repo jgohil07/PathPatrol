@@ -126,8 +126,9 @@ def test_effects_finish_on_a_paused_board_and_then_drawing_stops(open_page):
     draw_across(page)
     page.evaluate('__pp.game.pause("manual")')
     a = page.evaluate('__pp.state().frames')
-    page.wait_for_timeout(300)
-    assert page.evaluate('__pp.state().frames') - a >= 5                            # still animating the last effects on the paused board...
+    # still animating the last effects on the paused board... (waited for, not counted in a fixed 300 ms: CI's software-rendered
+    # WebKit drew only 4 frames in that time once, 2026-09-27; a board that stopped drawing never gets there and times out)
+    page.wait_for_function(f'__pp.state().frames - {a} >= 5', timeout=5000)
     wait_until_quiet(page)
     page.wait_for_timeout(100)
     b = page.evaluate('__pp.state().frames')
