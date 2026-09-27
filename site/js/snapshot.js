@@ -7,7 +7,7 @@
 
    Everything read back is untrusted (localStorage can hold anything), so validateSnapshot rebuilds a clean
    object field by field and returns null for the smallest doubt. A run that cannot be trusted is dropped. */
-import { GRID_W, GRID_H, BOARD_W, BOARD_H, APP_VERSION, MAX_LIVES, SCORE, KIND_NAMES, levelInfo } from './config.js';
+import { GRID_W, GRID_H, BOARD_W, BOARD_H, APP_VERSION, START_LIVES, MAX_LIVES, SCORE, KIND_NAMES, EXPERT, infoFor } from './config.js';
 import { POWER } from './powerups.js';
 import { FIELD, WALL, BORDER, ROUTE } from './grid.js';
 
@@ -72,7 +72,8 @@ export function takeSnapshot(game, now = Date.now()) {
     mode: run.mode, seed: run.seed, dayKey: run.dayKey || null,
     run: { lives: run.lives, score: run.score, combo: run.combo, nextLifeAt: run.nextLifeAt, stats: { ...run.stats }, best0: { ...run.best0 }, practice: !!run.practice },
   };
-  // On the win screen the level is done: come back to the next one, from its start.
+  // On the win screen the level is done: come back to the next one, from its start (expert's last one ends the run: nothing to save).
+  if (phase === 'clear' && run.mode === 'expert' && level.number >= EXPERT.levels) return null;
   if (phase === 'clear') return { ...base, level: level.number + 1, fresh: true };
   return {
     ...base, level: level.number, fresh: false,
@@ -115,18 +116,19 @@ function cleanPowerups(p) {
   return { pickup, nextIn: p.nextIn, kind: p.kind, active, draws: { seq: Math.floor(p.draws.seq), pos: Math.floor(p.draws.pos) } };
 }
 
-/* A clean copy of `raw`, or null. `today` is the local date key, needed to accept a daily run. */
-export function validateSnapshot(raw, { now = Date.now(), today = null } = {}) {
+/* A clean copy of `raw`, or null. `today` is the local date key, needed to accept a daily run. `slot` is where it was read
+   from: an expert run is accepted from the expert slot only, and nothing else is. */
+export function validateSnapshot(raw, { now = Date.now(), today = null, slot = 'run' } = {}) {
   if (!isObject(raw) || raw.v !== SNAPSHOT_VERSION) return null;
   if (typeof raw.app !== 'string' || raw.app.split('.')[0] !== APP_VERSION.split('.')[0]) return null;     // a new major version may change what a level is
   if (!Number.isFinite(raw.savedAt) || raw.savedAt > now + CLOCK_SKEW_MS || now - raw.savedAt > SNAPSHOT_MAX_AGE_MS) return null;
-  if (raw.mode !== 'normal' && raw.mode !== 'daily') return null;
+  if (slot === 'expert' ? raw.mode !== 'expert' : raw.mode !== 'normal' && raw.mode !== 'daily') return null;
   if (typeof raw.seed !== 'string' || raw.seed.length === 0 || raw.seed.length > 120) return null;
   if (raw.mode === 'daily' && (typeof raw.dayKey !== 'string' || raw.dayKey !== today)) return null;         // a daily run belongs to its own day
-  if (!Number.isInteger(raw.level) || raw.level < 1 || raw.level > MAX_LEVEL || typeof raw.fresh !== 'boolean') return null;
+  if (!Number.isInteger(raw.level) || raw.level < 1 || raw.level > (raw.mode === 'expert' ? EXPERT.levels : MAX_LEVEL) || typeof raw.fresh !== 'boolean') return null;
 
   const r = raw.run;
-  if (!isObject(r) || !Number.isInteger(r.lives) || r.lives < 1 || r.lives > MAX_LIVES) return null;
+  if (!isObject(r) || !Number.isInteger(r.lives) || r.lives < 1 || r.lives > (raw.mode === 'expert' ? START_LIVES : MAX_LIVES)) return null;      // (expert never grants a life)
   if (!isCount(r.score) || !isCount(r.nextLifeAt) || r.nextLifeAt <= r.score) return null;
   if (!Number.isFinite(r.combo) || r.combo < 1 || r.combo > SCORE.combo.max || (r.combo * 4) % 1 !== 0) return null;
   const stats = cleanStats(r.stats);
@@ -153,7 +155,7 @@ export function validateSnapshot(raw, { now = Date.now(), today = null } = {}) {
     patrols.push(p.slice());
   }
   // Tracers: exactly as many as this level has, each [loop number, position along the loop, direction].
-  if (!Array.isArray(raw.tracers) || raw.tracers.length !== levelInfo(raw.level).tracers) return null;
+  if (!Array.isArray(raw.tracers) || raw.tracers.length !== infoFor(raw.mode, raw.level).tracers) return null;
   const tracers = [];
   for (const t of raw.tracers) {
     if (!Array.isArray(t) || t.length !== 3 || !t.every(Number.isFinite) || (t[2] !== 1 && t[2] !== -1)) return null;

@@ -91,6 +91,7 @@ export const TUTORIAL = Object.freeze({
 
 export const STORAGE_KEY = 'pathpatrol:v2';
 export const SNAPSHOT_KEY = 'pathpatrol:v2:run';      // a run in progress, separate from settings and records
+export const EXPERT_SNAPSHOT_KEY = 'pathpatrol:v2:expert';      // an expert run in progress: its own slot, so neither overwrites the other
 export const LEGACY_KEY = 'color-divide-records-v1';
 
 /* The difficulty curve: level n is always the same, for every player. Every knob moves a little at a time, so each level is
@@ -109,7 +110,7 @@ export function levelInfo(level) {
     obstacles: Math.min(5, Math.floor((l - 1) / 5)),
     tracers: l < 5 ? 0 : Math.min(3, 1 + Math.floor((l - 5) / 9)),
     powerups: l >= 3,
-    kinds: kindsFor(l, Math.min(6, 1 + Math.floor((l - 1) / 5))),
+    kinds: kindsFor(Math.min(6, 1 + Math.floor((l - 1) / 5)), l, CAMPAIGN_ARRIVALS, specialFor(l)),
     special: specialFor(l),
     valley: l > 5 && l % 5 === 1,                  // the level after a special: an early pickup (powerups.js)
   };
@@ -122,17 +123,47 @@ function specialFor(level) {
   return (level / 5) % 2 === 1 ? 'shape' : 'boss';
 }
 
-/* Which kinds a level's patrols are, in order: new kinds join one at a time (a scout from level 8, a bomber from 12, a
-   hunter from 18) and replace standard patrols, so the count of patrols is the curve's as before. Levels 1-7 are all
-   standard. No kind arrives on a level where the count itself rises (6, 11, 16, 21, 26). Measured with the bots
+/* Which kinds a level's patrols are, in order: new kinds join one at a time (in the campaign a scout from level 8, a bomber
+   from 12, a hunter from 18) and replace standard patrols, so the count of patrols is the curve's as before. Levels 1-7 are
+   all standard. No kind arrives on a level where the count itself rises (6, 11, 16, 21, 26). Measured with the bots
    (research/difficulty-curve-20260927-kinds): each arrival moves the lives lost per level by less than 0.1, and a second
    scout, tried at 26 and at 29, made the top of the curve harder than the ceiling tuned on 2026-09-21, so there is none. */
-function kindsFor(level, count) {
-  const special = [];
-  if (level >= 8) special.push('scout');
-  if (level >= 12) special.push('bomber');
-  if (level >= 18) special.push('hunter');
-  const kinds = new Array(Math.max(0, count - special.length)).fill('standard').concat(special);
-  if (specialFor(level) === 'boss') kinds[0] = 'boss';          // the boss takes the place of a standard patrol (there is always one)
+const CAMPAIGN_ARRIVALS = [['scout', 8], ['bomber', 12], ['hunter', 18]];
+
+function kindsFor(count, level, arrivals, special) {
+  const extra = arrivals.filter(([, from]) => level >= from).map(([kind]) => kind);
+  const kinds = new Array(Math.max(0, count - extra.length)).fill('standard').concat(extra);
+  if (special === 'boss' || special === 'finale') kinds[0] = 'boss';          // the boss takes the place of a standard patrol (there is always one)
   return kinds.slice(0, count);
 }
+
+/* Expert mode: 15 levels on the 1.0.0 curve, compressed. Level 1 is where 1.0.0's level 6 was (3 patrols at 18.9 u/s, 2
+   obstacles, a tracer, 69 %); every knob climbs in a straight line, floored so that none ever goes down, to 1.0.0's peak on
+   level 15 (8 patrols at 30 u/s, 6 obstacles, 4 tracers, 75 %). The new kinds arrive early (never where the count rises:
+   4, 7, 10, 13, 15), level 5 is an odd board, 10 a boss and 15 the finale: a boss on an odd board. Its own boards
+   (EXPERT_SEED), three lives, no extra lives, no restarts, no stars. Measured with the bots: research/expert-curve-*. */
+export const EXPERT = Object.freeze({ levels: 15 });
+const EXPERT_ARRIVALS = [['scout', 2], ['bomber', 6], ['hunter', 8]];
+const EXPERT_SPECIALS = { 5: 'shape', 10: 'boss', 15: 'finale' };
+
+export function expertInfo(level) {
+  const e = Math.min(EXPERT.levels, Math.max(1, Math.floor(level)));
+  const k = e - 1;
+  const patrols = 3 + Math.floor((k * 5) / 14);
+  const special = EXPERT_SPECIALS[e] || null;
+  return {
+    level: e,
+    patrols,
+    speed: Math.round((18.9 + (k * 11.1) / 14) * 10) / 10,
+    target: 69 + Math.floor((k * 6) / 14),
+    obstacles: 2 + Math.floor((k * 4) / 14),
+    tracers: 1 + Math.floor((k * 3) / 14),
+    powerups: true,
+    kinds: kindsFor(patrols, e, EXPERT_ARRIVALS, special),
+    special,
+    valley: e === 6 || e === 11,                   // after the odd board and the boss: an early pickup (powerups.js)
+  };
+}
+
+/* The numbers of level n in a run of this mode: expert runs have their own curve, everything else is the campaign's. */
+export const infoFor = (mode, level) => (mode === 'expert' ? expertInfo(level) : levelInfo(level));

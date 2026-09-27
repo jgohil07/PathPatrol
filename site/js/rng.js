@@ -47,6 +47,7 @@ export const eventRng = (seed, level) => new Rng(`${seed}|events|${level}`);
 /* The seed of an ordinary run: fixed, so level n is the same board for every player and on every run. (The daily's is
    its date's.) */
 export const CAMPAIGN_SEED = 'pathpatrol-campaign';
+export const EXPERT_SEED = 'pathpatrol-expert';           // expert mode's boards: its own, not the campaign's
 
 /* The local calendar day as YYYY-MM-DD, and the seed the daily board derives from it. */
 export function dayKey(date = new Date()) {

@@ -8,7 +8,7 @@
    From level 3, a pickup appears every 12-20 s of game time and lasts 10 s. Which kind and when come from the seeded
    event stream, and where from a second stream: the kinds and timings are then the same for everyone on the same
    (seed, level) whatever they do on the board, and only the positions depend on the board. */
-import { CELLS_PER_UNIT as S, BOARD_W, BOARD_H, levelInfo } from './config.js';
+import { CELLS_PER_UNIT as S, BOARD_W, BOARD_H } from './config.js';
 import { FIELD, toCell } from './grid.js';
 import { Rng, eventRng } from './rng.js';
 
@@ -48,7 +48,7 @@ export class Powerups {
   /* A new level. Only levels from 3 have power-ups. */
   reset(level, seed) {
     this._clear();
-    this.enabled = levelInfo(level.number).powerups;
+    this.enabled = level.info.powerups;
     if (!this.enabled) return;
     this._seq = eventRng(seed, level.number);
     this._pos = new Rng(`${seed}|events|${level.number}|where`);
@@ -56,7 +56,7 @@ export class Powerups {
     // The level after a special (a valley after the peak) offers its first pickup within POWER.valley seconds: the same
     // single draw from the stream, mapped into the shorter span, so no other level's events move.
     const t = (first - POWER.spawn[0]) / (POWER.spawn[1] - POWER.spawn[0]);
-    this.nextAt = this.game.clock.now + (levelInfo(level.number).valley ? POWER.valley[0] + t * (POWER.valley[1] - POWER.valley[0]) : first);
+    this.nextAt = this.game.clock.now + (level.info.valley ? POWER.valley[0] + t * (POWER.valley[1] - POWER.valley[0]) : first);
     this.kind = this._draw('pick', POWER.kinds);
   }
 

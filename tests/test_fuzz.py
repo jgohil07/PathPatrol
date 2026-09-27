@@ -8,29 +8,31 @@ FUZZ = """
   const { Game } = await import('/js/game.js');
   const { createStorage, memoryBackend } = await import('/js/storage.js');
   const { FIELD, ROUTE, SOLID_MASK } = await import('/js/grid.js');
-  const { STEP, START_LIVES, MAX_LIVES, SCORE, levelInfo } = await import('/js/config.js');
+  const { STEP, START_LIVES, MAX_LIVES, SCORE, infoFor } = await import('/js/config.js');
   const { traceContours } = await import('/js/contour.js');
   const { POWER } = await import('/js/powerups.js');
   const { validateSnapshot } = await import('/js/snapshot.js');
   const rngOf = (seed) => { let s = seed >>> 0; return () => (s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296; };
   const out = { games: 0, steps: 0, actions: 0, routesStarted: 0, closed: 0, lifted: 0, hits: 0, captures: 0, restarts: 0, pauses: 0,
                 levelsCleared: 0, gameOvers: 0, shallow: 0, extraLives: 0, skips: 0, combosBroken: 0, tracerChases: 0, tracerCatches: 0, tracerLevels: 0, contourChecks: 0, saves: 0, dailyGames: 0, dailyOvers: 0, dailyCounted: 0, dailyPractice: 0,
-                spawns: 0, expired: 0, traps: 0, sweeps: 0, freeze: 0, shield: 0, slow: 0, frozenChecks: 0, shieldedChecks: 0, slowChecks: 0, problems: [] };
+                spawns: 0, expired: 0, finished: 0, traps: 0, sweeps: 0, freeze: 0, shield: 0, slow: 0, frozenChecks: 0, shieldedChecks: 0, slowChecks: 0, problems: [] };
   const note = (m) => { if (out.problems.length < 6) out.problems.push(m); };
 
   for (const seed of arg.seeds) {
     const rnd = rngOf(seed * 7919 + 13);
     const game = new Game({ storage: createStorage(memoryBackend()) });
-    const isDaily = seed % 3 === 0;                                   // a third of the games are dailies, each on its own pinned day
+    const expert = !!arg.expert;                                      // expert runs: 15 levels of their own, no extra lives, no restarts, their own save slot
+    const top = expert ? 15 : 24;
+    const isDaily = !expert && seed % 3 === 0;                        // a third of the games are dailies, each on its own pinned day
     if (isDaily) { game.today = () => '2026-09-' + String(10 + (seed % 15)); out.dailyGames++; }
-    const begin = (tag) => { if (isDaily) game.startDaily(); else game.newRun({ seed: 'fuzz-' + seed + tag }); };      // (a second daily on the same day is practice)
-    game.enterTitle(); begin(''); game.startLevel(1 + ((seed * 7) % 24));           // levels 1-24: the whole curve, up to 8 patrols at 30 u/s
+    const begin = (tag) => { if (isDaily) game.startDaily(); else game.newRun({ seed: 'fuzz-' + seed + tag, mode: expert ? 'expert' : 'normal' }); };      // (a second daily on the same day is practice)
+    game.enterTitle(); begin(''); game.startLevel(1 + ((seed * 7) % top));           // levels 1-24: the whole curve, up to 8 patrols at 30 u/s
     out.games++;
     const save = game.persist.bind(game);                             // whatever the game writes, its own check must accept: a save it cannot read back loses the run
-    game.persist = () => { save(); const raw = game.storage.loadSnapshot(); if (raw) { out.saves++; if (validateSnapshot(raw, { today: game.today() }) === null) note(`seed ${seed}: the game wrote a snapshot that its own check rejects`); } };
+    game.persist = () => { save(); const slot = expert ? 'expert' : 'run'; const raw = game.storage.loadSnapshot(slot); if (expert && game.storage.loadSnapshot('run')) note(`seed ${seed}: an expert run wrote to the campaign's slot`); if (raw) { out.saves++; if (validateSnapshot(raw, { today: game.today(), slot }) === null) note(`seed ${seed}: the game wrote a snapshot that its own check rejects`); } };
     const route = game.route; let clearedInLevel = 0, lastLevel = game.level;
     let lastRun = null, granted = 0, lastScore = 0;                  // extra lives granted in this run; the score a level has reached
-    game.on('extraLife', () => { granted++; out.extraLives++; });
+    game.on('extraLife', () => { granted++; out.extraLives++; if (expert) note(`seed ${seed}: an expert run was granted a life`); });
     game.on('trap', (e) => { out.traps += e.patrols.length; if (e.sweep) out.sweeps++; });
     game.on('combo', (c) => { if (c.broken) out.combosBroken++; });
     let frozenFor = null;                                             // patrol and tracer positions while a freeze holds (between captures)
@@ -83,14 +85,16 @@ FUZZ = """
         lastScore = level === lastLevel ? Math.max(lastScore, run.score) : run.score;
         if (run.combo < 1 || run.combo > SCORE.combo.max || (run.combo * 4) % 1 !== 0) note(`seed ${seed} ${where}: combo ${run.combo}`);
         if (run.score >= run.nextLifeAt) note(`seed ${seed} ${where}: score ${run.score} is past the next life threshold ${run.nextLifeAt}`);
-        if (game.storage.records.bestScore < run.score) note(`seed ${seed} ${where}: best score ${game.storage.records.bestScore} is below the score ${run.score}`);
+        const best = expert ? game.storage.records.expert.bestScore : game.storage.records.bestScore;
+        if (expert && (game.storage.records.bestScore !== 0 || game.storage.records.runs !== 0 || Object.keys(game.storage.records.stars).length)) note(`seed ${seed} ${where}: an expert run touched the campaign's records`);
+        if (best < run.score) note(`seed ${seed} ${where}: best score ${best} is below the score ${run.score}`);
         if (run.stats.captures < 0 || run.stats.closeCalls < 0 || run.stats.levelsCleared < 0) note(`seed ${seed} ${where}: negative stats`);
       }
       if (!['playing', 'paused', 'clear', 'over', 'countdown'].includes(game.phase)) note(`seed ${seed} ${where}: phase ${game.phase}`);
       // power-ups: one pickup at most, on open ground, and no timer longer than its duration
       const pu = game.powerups, now = game.clock.now;
       if (pu.pickup && (game.grid.get(Math.floor(pu.pickup.x * 2), Math.floor(pu.pickup.y * 2)) !== FIELD || pu.pickup.expires - now > POWER.lifetime + 1e-9)) note(`seed ${seed} ${where}: a pickup is on ground it cannot be on, or lives too long`);
-      if (pu.pickup && !levelInfo(level.number).powerups) note(`seed ${seed} ${where}: a pickup on level ${level.number}`);
+      if (pu.pickup && !infoFor(game.run.mode, level.number).powerups) note(`seed ${seed} ${where}: a pickup on level ${level.number}`);
       for (const kind of POWER.kinds) if (pu.until[kind] !== undefined && pu.until[kind] - now > POWER[kind] + 1e-9) note(`seed ${seed} ${where}: ${kind} has ${pu.until[kind] - now} s left`);
       // a freeze really stops patrols and tracers (checked step to step while it holds)
       if (pu.active('freeze') && game.phase === 'playing') {
@@ -102,7 +106,7 @@ FUZZ = """
       if (pu.shielded) out.shieldedChecks++;
       if (pu.active('slow')) out.slowChecks++;
       // tracers: as many as the level has, each on a real loop and finite
-      if (game.tracers.list.length !== levelInfo(level.number).tracers) note(`seed ${seed} ${where}: ${game.tracers.list.length} tracers on level ${level.number}`);
+      if (game.tracers.list.length !== infoFor(game.run.mode, level.number).tracers) note(`seed ${seed} ${where}: ${game.tracers.list.length} tracers on level ${level.number}`);
       for (const t of game.tracers.list) {
         const loop = game.tracers.loops[t.loop];
         if (!Number.isFinite(t.x + t.y + t.t)) note(`seed ${seed} ${where}: a tracer is not finite`);
@@ -131,11 +135,11 @@ FUZZ = """
     for (let i = 0; i < 2400; i++) {                                   // 20 seconds of game time
       const n = 1 + Math.floor(rnd() * 3); for (let k = 0; k < n; k++) { game.step(STEP); out.steps++; }
       check('after a step');
-      if (game.phase === 'over') { begin('-' + i); game.startLevel(1 + Math.floor(rnd() * 24)); route.end('cancel'); bot = null; continue; }
+      if (game.phase === 'over') { if (game.report.finished) out.finished++; begin('-' + i); game.startLevel(1 + Math.floor(rnd() * top)); route.end('cancel'); bot = null; continue; }
       const roll = rnd();
       if (game.tracers.list.length) out.tracerLevels++;
       if (roll < 0.004 && game.isPlaying()) { game.pause('manual'); out.pauses++; check('after a pause'); game.resume(); if (game.phase === 'countdown') game.resume(); bot = null; }
-      else if (roll < 0.006) { const restarted = game.restartLevel(); if (restarted && game.run.mode === 'daily') note(`seed ${seed}: a daily was restarted`); if (restarted) { out.restarts++; bot = null; check('after a restart'); } }
+      else if (roll < 0.006) { const restarted = game.restartLevel(); if (restarted && (game.run.mode === 'daily' || game.run.mode === 'expert')) note(`seed ${seed}: a ${game.run.mode} run was restarted`); if (restarted) { out.restarts++; bot = null; check('after a restart'); } }
       else if (game.phase === 'clear' && roll < 0.05) { if (game.skipClear()) out.skips++; check('after a skip'); }
       else if (bot === null) { if (rnd() < 0.09 && game.isPlaying()) startBot(); }
       else {
@@ -171,3 +175,16 @@ def test_a_bot_plays_hundreds_of_games_without_breaking_any_invariant(open_page)
     assert got['saves'] > 300                                           # and every save the games made was read back by the game's own check
     assert got['traps'] >= 5                                            # patrols were trapped (16 on these seeds), so every check above also held on levels that lost one
     assert got['dailyGames'] == 8 and got['dailyOvers'] >= 4 and got['dailyCounted'] >= 2 and got['dailyPractice'] >= 2     # a third were dailies, and ended both ways
+
+
+def test_the_bot_plays_expert_runs_without_breaking_any_invariant(open_page):
+    """The same bot and the same checks on expert runs (every level 1-15, with odd boards, the boss and the finale): never a
+    life granted, never a restart, saves only in expert's slot and all readable, and the campaign's records never touched."""
+    page = open_page()
+    got = page.evaluate("async (arg) => {" + FUZZ + "}", {'seeds': list(range(1, 16)), 'expert': True})
+    assert got['problems'] == [], got['problems']
+    assert got['games'] == 15 and got['steps'] > 60000
+    assert got['captures'] > 300 and got['hits'] > 50 and got['gameOvers'] >= 10 and got['traps'] >= 5
+    assert got['restarts'] == 0 and got['extraLives'] == 0            # the bot tried to restart; expert refused every time
+    assert got['saves'] > 400 and got['levelsCleared'] >= 3 and got['pauses'] > 50
+    assert got['contourChecks'] == got['captures']

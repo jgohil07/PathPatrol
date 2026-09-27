@@ -10,12 +10,11 @@ const CLEARANCE = 3;       // units of open ground kept around each obstacle
 const OBSTACLE_ATTEMPTS = 100;
 const SPAWN_ATTEMPTS = 300;
 
-export function buildLevel(number, seed, grid) {
-  const info = levelInfo(number);
+export function buildLevel(number, seed, grid, info = levelInfo(number)) {
   const rng = layoutRng(seed, number);
   grid.clear();
   grid.frame(FRAME_UNITS * S);
-  const shape = info.special === 'shape' ? stampShape(grid, rng) : null;        // (only special levels draw from the stream for it)
+  const shape = info.special === 'shape' || info.special === 'finale' ? stampShape(grid, rng) : null;        // (only special levels draw from the stream for it)
   const obstacles = placeObstacles(grid, rng, info.obstacles);
   const initialPlayable = grid.countField();
   const patrols = placePatrols(grid, rng, info);

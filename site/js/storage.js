@@ -1,7 +1,7 @@
 /* Persistence. Everything goes through here so a blocked, full or corrupt localStorage can never
    stop the game: reads fall back to defaults, writes fall back to memory, and `persistent` tells the
    UI whether progress will survive a reload. */
-import { STORAGE_KEY, LEGACY_KEY, SNAPSHOT_KEY, KIND_NAMES, STARS } from './config.js';
+import { STORAGE_KEY, LEGACY_KEY, SNAPSHOT_KEY, EXPERT_SNAPSHOT_KEY, KIND_NAMES, STARS, EXPERT } from './config.js';
 import { isDay } from './daily.js';
 
 const THEMES = ['flight', 'drive'];
@@ -10,9 +10,11 @@ const MOTIONS = ['auto', 'reduced', 'full'];
 export const defaultData = () => ({
   v: 2,
   settings: { sound: true, haptics: true, theme: 'flight', motion: 'auto', showFps: false, tutorialDone: false, installHintSeen: false, seenKinds: [] },
-  records: { bestScore: 0, bestClear: 0, bestLevel: 0, runs: 0, wins: 0, daily: { streak: 0, best: 0, last: '', result: null }, stars: {} },
+  records: { bestScore: 0, bestClear: 0, bestLevel: 0, runs: 0, wins: 0, daily: { streak: 0, best: 0, last: '', result: null }, stars: {},
+             expert: { best: 0, bestScore: 0, finished: 0, runs: 0 } },
 });
 
+const slotKey = (slot) => (slot === 'expert' ? EXPERT_SNAPSHOT_KEY : SNAPSHOT_KEY);
 const count = (value, fallback) => (Number.isFinite(value) && value >= 0 ? value : fallback);
 const isObject = (value) => value !== null && typeof value === 'object';
 
@@ -44,6 +46,18 @@ function cleanStars(input) {
   return out;
 }
 
+/* Expert mode's own records: the highest level cleared (0-15), the best score, runs finished and runs started. */
+function cleanExpert(input) {
+  const out = { best: 0, bestScore: 0, finished: 0, runs: 0 };
+  if (!isObject(input)) return out;
+  const whole = (n) => (Number.isInteger(n) && n >= 0 && n <= Number.MAX_SAFE_INTEGER ? n : 0);
+  if (Number.isInteger(input.best) && input.best >= 0 && input.best <= EXPERT.levels) out.best = input.best;
+  out.bestScore = whole(input.bestScore);
+  out.finished = whole(input.finished);
+  out.runs = whole(input.runs);
+  return out;
+}
+
 /* Merge untrusted JSON over the defaults; unknown keys and wrong types are dropped. */
 export function sanitize(input) {
   const out = defaultData();
@@ -57,9 +71,10 @@ export function sanitize(input) {
   if (typeof settings.tutorialDone === 'boolean') out.settings.tutorialDone = settings.tutorialDone;
   if (typeof settings.installHintSeen === 'boolean') out.settings.installHintSeen = settings.installHintSeen;
   if (Array.isArray(settings.seenKinds)) out.settings.seenKinds = KIND_NAMES.filter((k) => settings.seenKinds.includes(k));       // known kinds only, once each
-  for (const key of Object.keys(out.records)) out.records[key] = count(records[key], out.records[key]);       // (the daily's record and the stars are not numbers: they keep their defaults here, and are read properly next)
+  for (const key of Object.keys(out.records)) out.records[key] = count(records[key], out.records[key]);       // (the daily's record, the stars and expert's are not numbers: they keep their defaults here, and are read properly next)
   out.records.daily = cleanDaily(records.daily);
   out.records.stars = cleanStars(records.stars);
+  out.records.expert = cleanExpert(records.expert);
   return out;
 }
 
@@ -146,13 +161,15 @@ export function createStorage(backend) {
       return data.records;
     },
     reload() { data = load(); },
-    /* The run in progress. The caller validates what comes back: this only keeps and returns it. */
-    saveSnapshot(snapshot) { write(SNAPSHOT_KEY, JSON.stringify(snapshot)); },
-    loadSnapshot() {
-      const raw = read(SNAPSHOT_KEY);
+    /* The run in progress, in one of two slots: 'run' (the campaign's or the daily's) and 'expert'. The caller validates
+       what comes back: this only keeps and returns it. */
+    saveSnapshot(snapshot, slot = 'run') { write(slotKey(slot), JSON.stringify(snapshot)); },
+    loadSnapshot(slot = 'run') {
+      const key = slotKey(slot);
+      const raw = read(key);
       if (!raw) return null;
-      try { return JSON.parse(raw); } catch { remove(SNAPSHOT_KEY); return null; }      // damaged: forget it rather than keep tripping on it
+      try { return JSON.parse(raw); } catch { remove(key); return null; }      // damaged: forget it rather than keep tripping on it
     },
-    clearSnapshot() { remove(SNAPSHOT_KEY); },
+    clearSnapshot(slot = 'run') { remove(slotKey(slot)); },
   };
 }

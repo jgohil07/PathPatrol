@@ -4,6 +4,8 @@ import json
 
 import pytest
 
+NO_EXPERT = {'best': 0, 'bestScore': 0, 'finished': 0, 'runs': 0}     # expert mode's records before it has been played
+
 STORE = 'pathpatrol:v2'
 DEFAULT_SETTINGS = {'sound': True, 'haptics': True, 'theme': 'flight', 'motion': 'auto', 'showFps': False, 'tutorialDone': False, 'installHintSeen': False,
                     'seenKinds': []}
@@ -181,7 +183,7 @@ def test_d15_reset_needs_two_taps_and_keeps_the_theme(open_page):
     page.click('#resetStatsButton')                        # second tap within the window resets
     assert page.locator('#runsPlayed').inner_text() == '0' and page.locator('#bestClear').inner_text() == '0.0%'
     stored = json.loads(page.evaluate(f"localStorage.getItem('{STORE}')"))
-    assert stored['records'] == {'bestScore': 0, 'bestClear': 0, 'bestLevel': 0, 'runs': 0, 'wins': 0, 'daily': {'streak': 0, 'best': 0, 'last': '', 'result': None}, 'stars': {}}
+    assert stored['records'] == {'bestScore': 0, 'bestClear': 0, 'bestLevel': 0, 'runs': 0, 'wins': 0, 'daily': {'streak': 0, 'best': 0, 'last': '', 'result': None}, 'stars': {}, 'expert': NO_EXPERT}
     assert stored['settings'] == {**DEFAULT_SETTINGS, **changed}                       # all of it, theme and sound included, survives the reset
 
 
